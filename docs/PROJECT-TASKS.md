@@ -314,14 +314,14 @@ pr-review/
 **Description:** Set up continuous integration to lint, test, and build all components on every push.
 
 **Deliverables:**
-- [ ] Create `.github/workflows/ci.yml`
-- [ ] Configure jobs for backend linting (ruff)
-- [ ] Configure jobs for frontend linting (eslint)
-- [ ] Configure jobs for backend tests (pytest + coverage)
-- [ ] Configure jobs for frontend tests (vitest + coverage)
-- [ ] Configure jobs for scheduler tests
-- [ ] Configure jobs to verify Docker builds
-- [ ] Add coverage reporting
+- [x] Create `.github/workflows/ci.yml`
+- [x] Configure jobs for backend linting (ruff)
+- [x] Configure jobs for frontend linting (eslint)
+- [x] Configure jobs for backend tests (pytest + coverage)
+- [x] Configure jobs for frontend tests (vitest + coverage)
+- [x] Configure jobs for scheduler tests
+- [x] Configure jobs to verify Docker builds
+- [x] Add coverage reporting
 
 **Files to Create:**
 ```
