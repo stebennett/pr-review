@@ -1,0 +1,124 @@
+# PR-Review
+
+A GitHub Pull Request monitoring application that helps developers track open PRs across their GitHub organizations.
+
+## Architecture
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│   Web Frontend  │────▶│   Web Backend   │────▶│  GitHub API     │
+│   (React/Vite)  │     │   (FastAPI)     │     │                 │
+│                 │     │                 │     └─────────────────┘
+└─────────────────┘     │                 │
+                        │    ┌────────┐   │     ┌─────────────────┐
+                        │    │ SQLite │   │     │                 │
+                        │    └────────┘   │────▶│   SMTP2GO       │
+                        │                 │     │                 │
+┌─────────────────┐     │                 │     └─────────────────┘
+│                 │     │                 │
+│   Scheduler     │────▶│                 │
+│   (APScheduler) │     │                 │
+│                 │     └─────────────────┘
+└─────────────────┘
+```
+
+## Components
+
+- **web-fe**: React frontend built with Vite and Tailwind CSS 4
+- **web-be**: Python FastAPI REST API
+- **scheduler**: Python APScheduler service for email notifications
+
+## Project Structure
+
+```
+pr-review/
+├── apps/
+│   ├── web-fe/          # React frontend
+│   ├── web-be/          # FastAPI backend
+│   └── scheduler/       # APScheduler service
+├── shared/
+│   └── python/          # Shared Python packages
+├── docs/
+│   ├── SPECIFICATION.md # Full specification
+│   └── PROJECT-TASKS.md # Task breakdown
+└── docker-compose.yml   # Container orchestration
+```
+
+## Prerequisites
+
+- Node.js 20+
+- Python 3.11+
+- Docker and Docker Compose (optional, for containerized deployment)
+
+## Quick Start
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/your-org/pr-review.git
+cd pr-review
+```
+
+### 2. Set up environment variables
+
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+### 3. Start with Docker Compose
+
+```bash
+docker compose up
+```
+
+Or run each component individually (see Development Commands below).
+
+## Development Commands
+
+### Frontend (apps/web-fe)
+
+```bash
+cd apps/web-fe
+npm install                    # Install dependencies
+npm run dev                    # Start dev server (port 5173)
+npm run build                  # Production build
+npm run lint                   # Run ESLint
+npm run test                   # Run Vitest tests
+```
+
+### Backend (apps/web-be)
+
+```bash
+cd apps/web-be
+pip install -e ".[dev]"        # Install with dev dependencies
+uvicorn pr_review_api.main:app --reload  # Start dev server (port 8000)
+ruff check .                   # Lint Python code
+ruff format .                  # Format Python code
+pytest                         # Run all tests
+alembic upgrade head           # Run database migrations
+```
+
+### Scheduler (apps/scheduler)
+
+```bash
+cd apps/scheduler
+pip install -e ".[dev]"        # Install with dev dependencies
+python -m pr_review_scheduler.main  # Run scheduler
+pytest                         # Run tests
+```
+
+## Environment Variables
+
+See [.env.example](.env.example) for all required environment variables.
+
+Key variables:
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET`: GitHub OAuth App credentials
+- `JWT_SECRET_KEY`: Secret key for JWT token signing
+- `ENCRYPTION_KEY`: Fernet key for encrypting sensitive data
+- `SMTP2GO_*`: SMTP2GO credentials for email notifications
+
+## License
+
+MIT License - see [LICENSE](LICENSE) for details.
