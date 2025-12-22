@@ -227,11 +227,11 @@ export const api = {
 **Description:** Create the APScheduler-based scheduler service project.
 
 **Deliverables:**
-- [ ] Create `pyproject.toml` with APScheduler and dependencies
-- [ ] Create basic scheduler entry point
-- [ ] Set up configuration management
-- [ ] Create Dockerfile
-- [ ] Create placeholder for job implementations
+- [x] Create `pyproject.toml` with APScheduler and dependencies
+- [x] Create basic scheduler entry point
+- [x] Set up configuration management
+- [x] Create Dockerfile
+- [x] Create placeholder for job implementations
 
 **Files to Create:**
 ```
