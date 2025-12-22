@@ -1,0 +1,60 @@
+services:
+  web-fe:
+    build:
+      context: ./apps/web-fe
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      web-be:
+        condition: service_healthy
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+    restart: unless-stopped
+
+  web-be:
+    build:
+      context: .
+      dockerfile: apps/web-be/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/pr_review.db}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8000/api/auth/callback}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS:-24}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:5173}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health').raise_for_status()"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5s
+      retries: 3
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: apps/scheduler/Dockerfile
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      web-be:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/pr_review.db}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SMTP2GO_HOST=${SMTP2GO_HOST:-mail.smtp2go.com}
+      - SMTP2GO_PORT=${SMTP2GO_PORT:-587}
+      - SMTP2GO_USERNAME=${SMTP2GO_USERNAME}
+      - SMTP2GO_PASSWORD=${SMTP2GO_PASSWORD}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS:-noreply@example.com}
+      - APPLICATION_URL=${APPLICATION_URL:-http://localhost:5173}
+      - SCHEDULE_POLL_INTERVAL=${SCHEDULE_POLL_INTERVAL:-60}
+    restart: unless-stopped

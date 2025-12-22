@@ -34,15 +34,17 @@ A GitHub Pull Request monitoring application that helps developers track open PR
 ```
 pr-review/
 ├── apps/
-│   ├── web-fe/          # React frontend
-│   ├── web-be/          # FastAPI backend
-│   └── scheduler/       # APScheduler service
+│   ├── web-fe/              # React frontend
+│   ├── web-be/              # FastAPI backend
+│   └── scheduler/           # APScheduler service
 ├── shared/
-│   └── python/          # Shared Python packages
+│   └── python/              # Shared Python packages
+├── data/                    # SQLite database (gitignored)
 ├── docs/
-│   ├── SPECIFICATION.md # Full specification
-│   └── PROJECT-TASKS.md # Task breakdown
-└── docker-compose.yml   # Container orchestration
+│   ├── SPECIFICATION.md     # Full specification
+│   └── PROJECT-TASKS.md     # Task breakdown
+├── docker-compose.yml       # Production container orchestration
+└── docker-compose.dev.yml   # Development overrides (hot reload)
 ```
 
 ## Prerequisites
@@ -69,8 +71,21 @@ cp .env.example .env
 
 ### 3. Start with Docker Compose
 
+**Production mode:**
 ```bash
 docker compose up
+```
+
+**Development mode (with hot reload):**
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+```
+
+**Run a single service:**
+```bash
+docker compose up web-be       # Start backend only
+docker compose up web-fe       # Start frontend only
+docker compose up scheduler    # Start scheduler only
 ```
 
 Or run each component individually (see Development Commands below).
