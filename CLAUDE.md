@@ -87,6 +87,13 @@ scheduler (APScheduler) → SMTP2GO
 
 Work in vertical slices following the phases in SPECIFICATION.md.
 
-## Phase Tracking
+## Task Tracking
 
-Always check `TODOS.md` at the end of each development phase. Verify all sub-tasks are completed and mark them with 'x'.
+After completing each task:
+1. Review `docs/PROJECT-TASKS.md`
+2. Verify all deliverables for the task are complete
+3. Mark each completed deliverable with `[x]`
+4. Confirm acceptance criteria are met
+5. Create a pull request for the completed task
+
+Always check the task file at the end of each development phase to ensure all sub-tasks are completed.
