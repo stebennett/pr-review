@@ -1,0 +1,38 @@
+# Development overrides - enables hot reload for all services
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  web-fe:
+    build:
+      context: ./apps/web-fe
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./apps/web-fe/src:/app/src
+      - ./apps/web-fe/index.html:/app/index.html
+      - ./apps/web-fe/public:/app/public
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
+
+  web-be:
+    build:
+      context: .
+      dockerfile: apps/web-be/Dockerfile.dev
+    volumes:
+      - ./apps/web-be/src:/app/src
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      start_period: 5s
+      retries: 3
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: apps/scheduler/Dockerfile.dev
+    volumes:
+      - ./apps/scheduler/src:/app/src
+      - ./data:/app/data
