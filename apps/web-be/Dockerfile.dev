@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy shared package and install
+COPY shared/python/pr_review_shared /shared/python/pr_review_shared
+RUN pip install --no-cache-dir /shared/python/pr_review_shared
+
+# Copy pyproject.toml and install dependencies only (not the package itself)
+COPY apps/web-be/pyproject.toml /app/
+RUN pip install --no-cache-dir $(python -c "import tomllib; f=open('pyproject.toml','rb'); d=tomllib.load(f); print(' '.join(d['project']['dependencies']))")
+
+# Install dev dependencies
+RUN pip install --no-cache-dir uvicorn[standard]
+
+# Source code will be mounted as volume
+ENV PYTHONPATH=/app/src
+
+EXPOSE 8000
+
+CMD ["uvicorn", "pr_review_api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

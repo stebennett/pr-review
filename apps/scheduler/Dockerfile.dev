@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy shared package and install
+COPY shared/python/pr_review_shared /shared/python/pr_review_shared
+RUN pip install --no-cache-dir /shared/python/pr_review_shared
+
+# Copy pyproject.toml and install dependencies only (not the package itself)
+COPY apps/scheduler/pyproject.toml /app/
+RUN pip install --no-cache-dir $(python -c "import tomllib; f=open('pyproject.toml','rb'); d=tomllib.load(f); print(' '.join(d['project']['dependencies']))")
+
+# Source code will be mounted as volume
+ENV PYTHONPATH=/app/src
+
+CMD ["python", "-m", "pr_review_scheduler.main"]
