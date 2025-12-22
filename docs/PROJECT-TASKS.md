@@ -80,13 +80,13 @@ shared/python/pr_review_shared/
 **Description:** Create the FastAPI backend project with basic skeleton and configuration.
 
 **Deliverables:**
-- [ ] Create `pyproject.toml` with FastAPI and all dependencies
-- [ ] Create basic FastAPI application entry point
-- [ ] Set up configuration management with pydantic-settings
-- [ ] Set up SQLAlchemy database connection
-- [ ] Initialize Alembic for migrations
-- [ ] Create Dockerfile with multi-stage build
-- [ ] Add health check endpoint
+- [x] Create `pyproject.toml` with FastAPI and all dependencies
+- [x] Create basic FastAPI application entry point
+- [x] Set up configuration management with pydantic-settings
+- [x] Set up SQLAlchemy database connection
+- [x] Initialize Alembic for migrations
+- [x] Create Dockerfile with multi-stage build
+- [x] Add health check endpoint
 
 **Files to Create:**
 ```
