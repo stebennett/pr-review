@@ -1,0 +1,30 @@
+# To get started with Dependabot version updates, you'll need to specify which
+# package ecosystems to update and where the package manifests are located.
+# Please see the documentation for all configuration options:
+# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  - package-ecosystem: "uv"
+    directory: "/apps/scheduler"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "uv"
+    directory: "/apps/web-be"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "npm"
+    directory: "/apps/web-fe"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "docker"
+    directories:
+      - "/apps/web-be"
+      - "/apps/web-fe"
+      - "/apps/scheduler"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
