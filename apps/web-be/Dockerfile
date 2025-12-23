@@ -13,6 +13,7 @@ COPY shared/python/pr_review_shared /shared/python/pr_review_shared
 
 # Copy application code
 COPY apps/web-be/pyproject.toml apps/web-be/
+COPY apps/web-be/src apps/web-be/src/
 
 # Install dependencies
 RUN pip install --no-cache-dir /shared/python/pr_review_shared
