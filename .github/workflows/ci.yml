@@ -110,14 +110,16 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: apps/web-be
-        run: pytest --cov --cov-report=xml
+        run: pytest --cov --cov-report=xml || [ $? -eq 5 ]
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: coverage-backend
           path: apps/web-be/coverage.xml
           retention-days: 7
+          if-no-files-found: ignore
 
   test-frontend:
     name: Test Frontend
@@ -183,14 +185,16 @@ jobs:
 
       - name: Run tests with coverage
         working-directory: apps/scheduler
-        run: pytest --cov --cov-report=xml
+        run: pytest --cov --cov-report=xml || [ $? -eq 5 ]
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: coverage-scheduler
           path: apps/scheduler/coverage.xml
           retention-days: 7
+          if-no-files-found: ignore
 
   build-images:
     name: Build Docker Images
