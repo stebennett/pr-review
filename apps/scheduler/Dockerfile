@@ -13,6 +13,7 @@ COPY shared/python/pr_review_shared /shared/python/pr_review_shared
 
 # Copy application code
 COPY apps/scheduler/pyproject.toml apps/scheduler/
+COPY apps/scheduler/src apps/scheduler/src/
 
 # Install dependencies
 RUN pip install --no-cache-dir /shared/python/pr_review_shared
