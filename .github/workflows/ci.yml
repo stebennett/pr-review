@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
@@ -23,10 +23,12 @@ jobs:
         run: pip install ruff
 
       - name: Lint web-be
-        run: ruff check apps/web-be
+        working-directory: apps/web-be
+        run: ruff check .
 
       - name: Lint scheduler
-        run: ruff check apps/scheduler
+        working-directory: apps/scheduler
+        run: ruff check .
 
   lint-frontend:
     name: Lint Frontend (TypeScript)
