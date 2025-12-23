@@ -390,12 +390,12 @@ pr-review/
 **Description:** Create the authentication endpoints that handle GitHub OAuth flow.
 
 **Deliverables:**
-- [ ] Implement `GET /api/auth/login` - Returns GitHub OAuth authorization URL
-- [ ] Implement `GET /api/auth/callback` - Exchanges code for token, creates/updates user, returns JWT
-- [ ] Implement `GET /api/auth/me` - Returns current authenticated user info
-- [ ] Implement `POST /api/auth/logout` - Client-side only, returns success
-- [ ] Create auth router and register with main app
-- [ ] Write comprehensive tests with mocked GitHub API
+- [x] Implement `GET /api/auth/login` - Returns GitHub OAuth authorization URL
+- [x] Implement `GET /api/auth/callback` - Exchanges code for token, creates/updates user, returns JWT
+- [x] Implement `GET /api/auth/me` - Returns current authenticated user info
+- [x] Implement `POST /api/auth/logout` - Client-side only, returns success
+- [x] Create auth router and register with main app
+- [x] Write comprehensive tests with mocked GitHub API
 
 **Files to Create/Modify:**
 ```
