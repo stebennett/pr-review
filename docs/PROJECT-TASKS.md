@@ -356,10 +356,10 @@ pr-review/
 **Description:** Set up release workflow to build and push Docker images when version tags are created.
 
 **Deliverables:**
-- [ ] Create `.github/workflows/release.yml`
-- [ ] Configure Docker Hub (or GitHub Container Registry) authentication
-- [ ] Build and push all three images with version tags
-- [ ] Tag images with both version and `latest`
+- [x] Create `.github/workflows/release.yml`
+- [x] Configure Docker Hub (or GitHub Container Registry) authentication
+- [x] Build and push all three images with version tags
+- [x] Tag images with both version and `latest`
 
 **Files to Create:**
 ```

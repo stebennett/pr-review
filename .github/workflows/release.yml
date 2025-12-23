@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  release:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Build and push web-fe image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./apps/web-fe
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-web-fe:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-web-fe:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push web-be image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/web-be/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-web-be:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-web-be:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push scheduler image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./apps/scheduler/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-scheduler:${{ steps.version.outputs.VERSION }}
+            ${{ env.REGISTRY }}/${{ github.repository_owner }}/pr-review-scheduler:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
