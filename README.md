@@ -90,6 +90,48 @@ docker compose up scheduler    # Start scheduler only
 
 Or run each component individually (see Development Commands below).
 
+## Local Development Setup
+
+### 1. Create a Python virtual environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install the shared package
+
+```bash
+pip install -e ./shared/python/pr_review_shared
+```
+
+### 3. Set up environment variables
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and configure:
+
+```bash
+# Generate JWT secret key
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+
+# Generate encryption key
+python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+### 4. Set up GitHub OAuth (required for authentication)
+
+1. Go to https://github.com/settings/developers
+2. Click **"New OAuth App"**
+3. Fill in:
+   - **Application name**: `PR-Review Local`
+   - **Homepage URL**: `http://localhost:5173`
+   - **Authorization callback URL**: `http://localhost:8000/api/auth/callback`
+4. Copy the **Client ID** and generate a **Client Secret**
+5. Add them to your `.env` file
+
 ## Development Commands
 
 ### Frontend (apps/web-fe)
@@ -107,6 +149,7 @@ npm run test                   # Run Vitest tests
 
 ```bash
 cd apps/web-be
+ln -s ../../.env .env          # Symlink .env for local development
 pip install -e ".[dev]"        # Install with dev dependencies
 uvicorn pr_review_api.main:app --reload  # Start dev server (port 8000)
 ruff check .                   # Lint Python code
@@ -114,6 +157,8 @@ ruff format .                  # Format Python code
 pytest                         # Run all tests
 alembic upgrade head           # Run database migrations
 ```
+
+The API documentation is available at http://localhost:8000/docs when the server is running.
 
 ### Scheduler (apps/scheduler)
 
