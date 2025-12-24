@@ -449,10 +449,10 @@ class TokenResponse(BaseModel):
 **Description:** Create the JWT service for token generation and validation.
 
 **Deliverables:**
-- [ ] Implement `create_token(user_id: str) -> str`
-- [ ] Implement `verify_token(token: str) -> dict` (returns payload or raises)
-- [ ] Create dependency for protected routes `get_current_user`
-- [ ] Write unit tests
+- [x] Implement `create_token(user_id: str) -> str`
+- [x] Implement `verify_token(token: str) -> dict` (returns payload or raises)
+- [x] Create dependency for protected routes `get_current_user`
+- [x] Write unit tests
 
 **Files to Create/Modify:**
 ```
