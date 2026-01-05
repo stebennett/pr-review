@@ -13,7 +13,7 @@ from pr_review_api.config import get_settings
 from pr_review_api.database import Base
 
 # Import all models here to ensure they are registered with Base.metadata
-# from pr_review_api.models import user, schedule, pull_request  # noqa: F401
+from pr_review_api.models import User  # noqa: F401
 
 # Alembic Config object
 config = context.config

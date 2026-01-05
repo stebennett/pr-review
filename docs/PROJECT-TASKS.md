@@ -449,10 +449,10 @@ class TokenResponse(BaseModel):
 **Description:** Create the JWT service for token generation and validation.
 
 **Deliverables:**
-- [ ] Implement `create_token(user_id: str) -> str`
-- [ ] Implement `verify_token(token: str) -> dict` (returns payload or raises)
-- [ ] Create dependency for protected routes `get_current_user`
-- [ ] Write unit tests
+- [x] Implement `create_token(user_id: str) -> str`
+- [x] Implement `verify_token(token: str) -> dict` (returns payload or raises)
+- [x] Create dependency for protected routes `get_current_user`
+- [x] Write unit tests
 
 **Files to Create/Modify:**
 ```
@@ -484,9 +484,9 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the SQLAlchemy models and Alembic migrations for the users table.
 
 **Deliverables:**
-- [ ] Create User SQLAlchemy model
-- [ ] Create initial Alembic migration for users table
-- [ ] Verify migration runs successfully
+- [x] Create User SQLAlchemy model
+- [x] Create initial Alembic migration for users table
+- [x] Verify migration runs successfully
 
 **Files to Create/Modify:**
 ```
