@@ -484,9 +484,9 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the SQLAlchemy models and Alembic migrations for the users table.
 
 **Deliverables:**
-- [ ] Create User SQLAlchemy model
-- [ ] Create initial Alembic migration for users table
-- [ ] Verify migration runs successfully
+- [x] Create User SQLAlchemy model
+- [x] Create initial Alembic migration for users table
+- [x] Verify migration runs successfully
 
 **Files to Create/Modify:**
 ```
