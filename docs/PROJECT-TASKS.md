@@ -524,11 +524,11 @@ class User(Base):
 **Description:** Create the login page with GitHub OAuth button and handle the callback.
 
 **Deliverables:**
-- [ ] Create Login page component
-- [ ] Implement "Login with GitHub" button that redirects to backend `/api/auth/login`
-- [ ] Create callback handler that extracts JWT from URL and stores in localStorage
-- [ ] Redirect to dashboard after successful login
-- [ ] Handle login errors gracefully
+- [x] Create Login page component
+- [x] Implement "Login with GitHub" button that redirects to backend `/api/auth/login`
+- [x] Create callback handler that extracts JWT from URL and stores in localStorage
+- [x] Redirect to dashboard after successful login
+- [x] Handle login errors gracefully
 
 **Files to Create/Modify:**
 ```

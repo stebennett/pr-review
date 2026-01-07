@@ -5,6 +5,10 @@ export interface User {
   avatar_url: string | null;
 }
 
+export interface LoginResponse {
+  url: string;
+}
+
 export interface Organization {
   id: string;
   login: string;
