@@ -607,12 +607,12 @@ interface AuthContextType {
 **Description:** Create the service for fetching organizations, repositories, and pull requests from GitHub API.
 
 **Deliverables:**
-- [ ] Implement `get_user_organizations(access_token) -> List[Organization]`
-- [ ] Implement `get_organization_repositories(access_token, org) -> List[Repository]`
-- [ ] Implement `get_repository_pull_requests(access_token, org, repo) -> List[PullRequest]`
-- [ ] Implement `get_pull_request_checks(access_token, org, repo, pr_number) -> CheckStatus`
-- [ ] Handle rate limiting (track remaining requests)
-- [ ] Write tests with mocked GitHub responses
+- [x] Implement `get_user_organizations(access_token) -> List[Organization]`
+- [x] Implement `get_organization_repositories(access_token, org) -> List[Repository]`
+- [x] Implement `get_repository_pull_requests(access_token, org, repo) -> List[PullRequest]`
+- [x] Implement `get_pull_request_checks(access_token, org, repo, pr_number) -> CheckStatus`
+- [x] Handle rate limiting (track remaining requests)
+- [x] Write tests with mocked GitHub responses
 
 **Files to Create/Modify:**
 ```
