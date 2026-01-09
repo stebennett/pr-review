@@ -7,11 +7,14 @@ services:
       context: ./apps/web-fe
       dockerfile: Dockerfile.dev
     ports:
-      - "5173:5173"
+      - "3000:5173"
     volumes:
       - ./apps/web-fe/src:/app/src
       - ./apps/web-fe/index.html:/app/index.html
       - ./apps/web-fe/public:/app/public
+      - ./apps/web-fe/vite.config.ts:/app/vite.config.ts
+      - ./apps/web-fe/tsconfig.json:/app/tsconfig.json
+      - ./apps/web-fe/postcss.config.js:/app/postcss.config.js
     environment:
       - VITE_API_URL=${VITE_API_URL:-http://localhost:8000}
 
@@ -22,6 +25,9 @@ services:
     volumes:
       - ./apps/web-be/src:/app/src
       - ./data:/app/data
+    environment:
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - FRONTEND_URL=http://localhost:3000
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
