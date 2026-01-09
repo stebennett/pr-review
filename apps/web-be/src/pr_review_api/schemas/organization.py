@@ -15,3 +15,23 @@ class Organization(BaseModel):
     id: str
     login: str
     avatar_url: str | None = None
+
+
+class OrganizationsData(BaseModel):
+    """Container for organizations list.
+
+    Attributes:
+        organizations: List of organizations.
+    """
+
+    organizations: list[Organization]
+
+
+class OrganizationsResponse(BaseModel):
+    """API response wrapper for organizations endpoint.
+
+    Attributes:
+        data: Container with list of organizations.
+    """
+
+    data: OrganizationsData

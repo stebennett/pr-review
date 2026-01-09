@@ -647,10 +647,10 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the API endpoint to list organizations the user has access to.
 
 **Deliverables:**
-- [ ] Implement `GET /api/organizations`
-- [ ] Return list of organizations with id, name, and avatar_url
-- [ ] Require authentication
-- [ ] Write endpoint tests
+- [x] Implement `GET /api/organizations`
+- [x] Return list of organizations with id, name, and avatar_url
+- [x] Require authentication
+- [x] Write endpoint tests
 
 **Files to Create/Modify:**
 ```

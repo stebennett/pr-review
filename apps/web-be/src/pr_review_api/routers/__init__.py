@@ -1,5 +1,5 @@
 """API routers."""
 
-from pr_review_api.routers import auth
+from pr_review_api.routers import auth, organizations
 
-__all__ = ["auth"]
+__all__ = ["auth", "organizations"]

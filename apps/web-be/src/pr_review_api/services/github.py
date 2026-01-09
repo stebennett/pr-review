@@ -308,9 +308,7 @@ class GitHubAPIService:
                         ],
                         checks_status=checks_status,
                         html_url=pr["html_url"],
-                        created_at=datetime.fromisoformat(
-                            pr["created_at"].replace("Z", "+00:00")
-                        ),
+                        created_at=datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00")),
                     )
                 )
 
