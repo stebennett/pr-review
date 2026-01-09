@@ -22,11 +22,21 @@ services:
     build:
       context: .
       dockerfile: apps/web-be/Dockerfile.dev
+    ports:
+      - "8000:8000"
     volumes:
       - ./apps/web-be/src:/app/src
       - ./data:/app/data
     environment:
-      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/pr_review.db}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8000/api/auth/callback}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_ALGORITHM=${JWT_ALGORITHM:-HS256}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS:-24}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000
       - FRONTEND_URL=http://localhost:3000
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]

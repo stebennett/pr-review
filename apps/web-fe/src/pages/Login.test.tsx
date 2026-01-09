@@ -1,59 +1,87 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import Login from "./Login";
+import { AuthProvider } from "../contexts/AuthContext";
 import * as api from "../services/api";
+
+// Mock the api module
+vi.mock("../services/api", async () => {
+  const actual = await vi.importActual("../services/api");
+  return {
+    ...actual,
+    api: {
+      get: vi.fn(),
+      post: vi.fn(),
+      put: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+});
 
 function renderLogin(initialEntries: string[] = ["/login"]) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <Login />
+      <AuthProvider>
+        <Login />
+      </AuthProvider>
     </MemoryRouter>
   );
 }
 
 describe("Login", () => {
   beforeEach(() => {
+    localStorage.clear();
     vi.clearAllMocks();
+    // Default to not authenticated
+    vi.spyOn(api, "hasAuthToken").mockReturnValue(false);
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("renders the login page with title and description", () => {
+  it("renders the login page with title and description", async () => {
     renderLogin();
 
-    expect(screen.getByText("PR Review")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("PR Review")).toBeInTheDocument();
+    });
     expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
     expect(
       screen.getByText("Monitor pull requests across your GitHub organizations")
     ).toBeInTheDocument();
   });
 
-  it("renders the GitHub login button", () => {
+  it("renders the GitHub login button", async () => {
     renderLogin();
 
-    const button = screen.getByRole("button", { name: /sign in with github/i });
-    expect(button).toBeInTheDocument();
+    await waitFor(() => {
+      const button = screen.getByRole("button", { name: /sign in with github/i });
+      expect(button).toBeInTheDocument();
+    });
   });
 
-  it("displays error message when OAuth fails", () => {
+  it("displays error message when OAuth fails", async () => {
     render(
       <MemoryRouter initialEntries={["/login?error=oauth_failed"]}>
-        <Login />
+        <AuthProvider>
+          <Login />
+        </AuthProvider>
       </MemoryRouter>
     );
 
-    expect(
-      screen.getByText("Authentication failed. Please try again.")
-    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.getByText("Authentication failed. Please try again.")
+      ).toBeInTheDocument();
+    });
   });
 
   it("initiates OAuth flow when login button is clicked", async () => {
     const user = userEvent.setup();
-    const mockGet = vi.spyOn(api.api, "get").mockResolvedValue({
+    (api.api.get as Mock).mockResolvedValue({
       url: "https://github.com/login/oauth/authorize?client_id=test",
     });
 
@@ -67,11 +95,15 @@ describe("Login", () => {
 
     renderLogin();
 
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /sign in with github/i })).toBeInTheDocument();
+    });
+
     const button = screen.getByRole("button", { name: /sign in with github/i });
     await user.click(button);
 
     await waitFor(() => {
-      expect(mockGet).toHaveBeenCalledWith("/api/auth/login");
+      expect(api.api.get).toHaveBeenCalledWith("/api/auth/login");
     });
 
     await waitFor(() => {
@@ -96,9 +128,13 @@ describe("Login", () => {
       resolvePromise = resolve;
     });
 
-    vi.spyOn(api.api, "get").mockReturnValue(pendingPromise);
+    (api.api.get as Mock).mockReturnValue(pendingPromise);
 
     renderLogin();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /sign in with github/i })).toBeInTheDocument();
+    });
 
     const button = screen.getByRole("button", { name: /sign in with github/i });
     await user.click(button);
@@ -110,7 +146,7 @@ describe("Login", () => {
     });
 
     // Button should be disabled during loading
-    expect(button).toBeDisabled();
+    expect(screen.getByRole("button", { name: /redirecting to github/i })).toBeDisabled();
 
     // Cleanup - resolve the promise
     resolvePromise!({ url: "https://github.com" });
@@ -118,9 +154,13 @@ describe("Login", () => {
 
   it("displays error message when API call fails", async () => {
     const user = userEvent.setup();
-    vi.spyOn(api.api, "get").mockRejectedValue(new Error("Network error"));
+    (api.api.get as Mock).mockRejectedValue(new Error("Network error"));
 
     renderLogin();
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /sign in with github/i })).toBeInTheDocument();
+    });
 
     const button = screen.getByRole("button", { name: /sign in with github/i });
     await user.click(button);
@@ -132,6 +172,6 @@ describe("Login", () => {
     });
 
     // Button should be enabled again after error
-    expect(button).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: /sign in with github/i })).not.toBeDisabled();
   });
 });

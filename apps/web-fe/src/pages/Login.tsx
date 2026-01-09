@@ -1,7 +1,6 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { api } from "../services/api";
-import type { LoginResponse } from "../types";
+import { useSearchParams, Navigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 
 function GitHubIcon({ className }: { className?: string }) {
   return (
@@ -24,6 +23,12 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { isAuthenticated, isLoading: authLoading, login } = useAuth();
+
+  // Redirect to dashboard if already authenticated
+  if (!authLoading && isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
 
   // Check for OAuth error in URL params
   const oauthError = searchParams.get("error");
@@ -33,9 +38,7 @@ export default function Login() {
     setError(null);
 
     try {
-      const response = await api.get<LoginResponse>("/api/auth/login");
-      // Redirect to GitHub OAuth
-      window.location.href = response.url;
+      await login();
     } catch (err) {
       setIsLoading(false);
       setError("Failed to initiate login. Please try again.");
