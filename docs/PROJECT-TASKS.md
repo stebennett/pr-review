@@ -562,12 +562,12 @@ apps/web-fe/src/
 **Description:** Create React context for authentication state and protect routes that require login.
 
 **Deliverables:**
-- [ ] Create AuthContext with user state and auth methods
-- [ ] Create `useAuth` hook for accessing auth state
-- [ ] Create ProtectedRoute wrapper component
-- [ ] Update api.ts to include JWT in Authorization header
-- [ ] Add logout functionality
-- [ ] Write tests for auth hooks
+- [x] Create AuthContext with user state and auth methods
+- [x] Create `useAuth` hook for accessing auth state
+- [x] Create ProtectedRoute wrapper component
+- [x] Update api.ts to include JWT in Authorization header
+- [x] Add logout functionality
+- [x] Write tests for auth hooks
 
 **Files to Create/Modify:**
 ```
