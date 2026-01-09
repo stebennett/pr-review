@@ -73,4 +73,17 @@ export const api = {
   },
 };
 
+// Auth utilities
+export function setAuthToken(token: string): void {
+  localStorage.setItem("token", token);
+}
+
+export function clearAuthToken(): void {
+  localStorage.removeItem("token");
+}
+
+export function hasAuthToken(): boolean {
+  return !!localStorage.getItem("token");
+}
+
 export { ApiError };
