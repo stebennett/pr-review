@@ -1,12 +1,11 @@
 # Stage 1: Builder
-FROM python:3.11-slim as builder
+FROM dhi.io/python:3.14-alpine3.23-dev AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+# Create venv and add to PATH
+RUN python -m venv /app/venv
+ENV PATH="/app/venv/bin:$PATH"
 
 # Copy shared package first (for local dependency)
 COPY shared/python/pr_review_shared /shared/python/pr_review_shared
@@ -20,27 +19,16 @@ RUN pip install --no-cache-dir /shared/python/pr_review_shared
 RUN pip install --no-cache-dir /app/apps/web-be
 
 # Stage 2: Runtime
-FROM python:3.11-slim as runtime
+FROM dhi.io/python:3.14-alpine3.23
 
 WORKDIR /app
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash appuser
-
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
-
-# Copy application source
-COPY apps/web-be/src /app/src
+# Copy installed packages from builder and add venv to PATH
+COPY --from=builder /app/venv /app/venv
 COPY apps/web-be/alembic.ini /app/
 COPY apps/web-be/alembic /app/alembic
 
-# Set ownership to non-root user
-RUN chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
+ENV PATH="/app/venv/bin:$PATH"
 
 # Expose port
 EXPOSE 8000
