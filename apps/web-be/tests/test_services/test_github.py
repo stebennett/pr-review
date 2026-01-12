@@ -282,9 +282,7 @@ class TestGitHubAPIService:
             }
         ]
 
-        mock_check_runs = {
-            "check_runs": [{"status": "completed", "conclusion": "success"}]
-        }
+        mock_check_runs = {"check_runs": [{"status": "completed", "conclusion": "success"}]}
 
         mock_prs_response = self._create_mock_response(mock_prs)
         mock_checks_response = self._create_mock_response(mock_check_runs)
@@ -505,9 +503,7 @@ class TestGitHubAPIService:
     async def test_get_pull_request_checks_timed_out(self, service):
         """Should return 'fail' when check times out."""
         mock_pr = {"head": {"sha": "abc123"}}
-        mock_check_runs = {
-            "check_runs": [{"status": "completed", "conclusion": "timed_out"}]
-        }
+        mock_check_runs = {"check_runs": [{"status": "completed", "conclusion": "timed_out"}]}
 
         mock_pr_response = self._create_mock_response(mock_pr)
         mock_checks_response = self._create_mock_response(mock_check_runs)
