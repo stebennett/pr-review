@@ -167,38 +167,65 @@ class TestGitHubAPIService:
 
     @pytest.mark.asyncio
     async def test_get_user_organizations_success(self, service):
-        """Should fetch and parse user organizations."""
+        """Should fetch and parse user organizations plus personal account."""
+        mock_user = {
+            "id": 999,
+            "login": "testuser",
+            "avatar_url": "https://example.com/user-avatar.png",
+        }
         mock_orgs = [
             {"id": 123, "login": "my-org", "avatar_url": "https://example.com/avatar1.png"},
             {"id": 456, "login": "other-org", "avatar_url": "https://example.com/avatar2.png"},
         ]
 
-        mock_response = self._create_mock_response(mock_orgs)
+        mock_user_response = self._create_mock_response(mock_user)
+        mock_orgs_response = self._create_mock_response(mock_orgs)
 
         with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
-            mock_client_class.return_value = self._create_mock_client(mock_response)
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=[mock_user_response, mock_orgs_response])
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
 
             orgs, rate_limit = await service.get_user_organizations("test_token")
 
-            assert len(orgs) == 2
-            assert orgs[0].id == "123"
-            assert orgs[0].login == "my-org"
-            assert orgs[0].avatar_url == "https://example.com/avatar1.png"
-            assert orgs[1].id == "456"
-            assert orgs[1].login == "other-org"
+            # Should include personal account first, then organizations
+            assert len(orgs) == 3
+            assert orgs[0].id == "999"
+            assert orgs[0].login == "testuser"
+            assert orgs[0].avatar_url == "https://example.com/user-avatar.png"
+            assert orgs[1].id == "123"
+            assert orgs[1].login == "my-org"
+            assert orgs[2].id == "456"
+            assert orgs[2].login == "other-org"
             assert rate_limit.remaining == 4999
 
     @pytest.mark.asyncio
     async def test_get_user_organizations_empty(self, service):
-        """Should handle empty organizations list."""
-        mock_response = self._create_mock_response([])
+        """Should return personal account when user has no organizations."""
+        mock_user = {
+            "id": 999,
+            "login": "testuser",
+            "avatar_url": "https://example.com/user-avatar.png",
+        }
+
+        mock_user_response = self._create_mock_response(mock_user)
+        mock_orgs_response = self._create_mock_response([])
 
         with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
-            mock_client_class.return_value = self._create_mock_client(mock_response)
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=[mock_user_response, mock_orgs_response])
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
 
             orgs, rate_limit = await service.get_user_organizations("test_token")
 
-            assert len(orgs) == 0
+            # Should still include personal account
+            assert len(orgs) == 1
+            assert orgs[0].id == "999"
+            assert orgs[0].login == "testuser"
             assert rate_limit.remaining == 4999
 
     @pytest.mark.asyncio
@@ -264,6 +291,37 @@ class TestGitHubAPIService:
             call_args = mock_client.get.call_args
             assert call_args[1]["params"]["per_page"] == 100
             assert call_args[1]["params"]["sort"] == "updated"
+
+    @pytest.mark.asyncio
+    async def test_get_organization_repositories_fallback_to_user_endpoint(self, service):
+        """Should fallback to user repos endpoint when org endpoint returns 404."""
+        mock_repos = [
+            {"id": 789, "name": "personal-repo", "full_name": "testuser/personal-repo"},
+        ]
+
+        # First response: 404 for org endpoint
+        mock_404_response = MagicMock()
+        mock_404_response.status_code = 404
+
+        # Second response: success for user endpoint
+        mock_repos_response = self._create_mock_response(mock_repos)
+        mock_repos_response.status_code = 200
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=[mock_404_response, mock_repos_response])
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            repos, rate_limit = await service.get_organization_repositories("test_token", "testuser")
+
+            assert len(repos) == 1
+            assert repos[0].name == "personal-repo"
+            assert repos[0].full_name == "testuser/personal-repo"
+
+            # Verify both endpoints were called
+            assert mock_client.get.call_count == 2
 
     # Tests for get_repository_pull_requests
 

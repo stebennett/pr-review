@@ -785,12 +785,12 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the main dashboard page with navbar and organization selector dropdown.
 
 **Deliverables:**
-- [ ] Create Dashboard page component
-- [ ] Create Navbar component with user avatar and logout
-- [ ] Create OrgSelector dropdown component
-- [ ] Implement `useOrganizations` hook to fetch organizations
-- [ ] Store selected organization in state (and localStorage for persistence)
-- [ ] Write component tests
+- [x] Create Dashboard page component
+- [x] Create Navbar component with user avatar and logout
+- [x] Create OrgSelector dropdown component
+- [x] Implement `useOrganizations` hook to fetch organizations
+- [x] Store selected organization in state (and localStorage for persistence)
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
