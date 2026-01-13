@@ -687,10 +687,10 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the API endpoint to list repositories in an organization.
 
 **Deliverables:**
-- [ ] Implement `GET /api/organizations/{org}/repositories`
-- [ ] Return list of repositories with id, name, full_name
-- [ ] Require authentication
-- [ ] Write endpoint tests
+- [x] Implement `GET /api/organizations/{org}/repositories`
+- [x] Return list of repositories with id, name, full_name
+- [x] Require authentication
+- [x] Write endpoint tests
 
 **Files to Create/Modify:**
 ```

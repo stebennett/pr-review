@@ -8,7 +8,11 @@ from pr_review_api.schemas.organization import (
 )
 from pr_review_api.schemas.pull_request import Author, Label, PullRequest
 from pr_review_api.schemas.rate_limit import RateLimitInfo
-from pr_review_api.schemas.repository import Repository
+from pr_review_api.schemas.repository import (
+    RepositoriesData,
+    RepositoriesResponse,
+    Repository,
+)
 
 __all__ = [
     "Author",
@@ -19,6 +23,8 @@ __all__ = [
     "OrganizationsResponse",
     "PullRequest",
     "RateLimitInfo",
+    "RepositoriesData",
+    "RepositoriesResponse",
     "Repository",
     "TokenResponse",
     "UserResponse",

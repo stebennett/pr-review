@@ -15,3 +15,23 @@ class Repository(BaseModel):
     id: str
     name: str
     full_name: str
+
+
+class RepositoriesData(BaseModel):
+    """Container for repositories list.
+
+    Attributes:
+        repositories: List of repositories.
+    """
+
+    repositories: list[Repository]
+
+
+class RepositoriesResponse(BaseModel):
+    """API response wrapper for repositories endpoint.
+
+    Attributes:
+        data: Container with list of repositories.
+    """
+
+    data: RepositoriesData
