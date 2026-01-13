@@ -264,7 +264,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-scheduler-image:
-    name: Build FE Docker Image
+    name: Build Scheduler image
     runs-on: ubuntu-latest
     needs: [lint-backend, test-scheduler]
     steps:
