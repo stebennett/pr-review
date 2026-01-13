@@ -6,7 +6,14 @@ from pr_review_api.schemas.organization import (
     OrganizationsData,
     OrganizationsResponse,
 )
-from pr_review_api.schemas.pull_request import Author, Label, PullRequest
+from pr_review_api.schemas.pull_request import (
+    Author,
+    Label,
+    PullRequest,
+    PullRequestsData,
+    PullRequestsMeta,
+    PullRequestsResponse,
+)
 from pr_review_api.schemas.rate_limit import RateLimitInfo
 from pr_review_api.schemas.repository import (
     RepositoriesData,
@@ -22,6 +29,9 @@ __all__ = [
     "OrganizationsData",
     "OrganizationsResponse",
     "PullRequest",
+    "PullRequestsData",
+    "PullRequestsMeta",
+    "PullRequestsResponse",
     "RateLimitInfo",
     "RepositoriesData",
     "RepositoriesResponse",

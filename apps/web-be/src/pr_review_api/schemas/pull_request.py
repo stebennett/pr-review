@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from pr_review_api.schemas.rate_limit import RateLimitInfo
+
 
 class Author(BaseModel):
     """Pull request author.
@@ -49,3 +51,35 @@ class PullRequest(BaseModel):
     checks_status: str  # 'pass', 'fail', 'pending'
     html_url: str
     created_at: datetime
+
+
+class PullRequestsData(BaseModel):
+    """Container for pull requests list.
+
+    Attributes:
+        pulls: List of pull requests.
+    """
+
+    pulls: list[PullRequest]
+
+
+class PullRequestsMeta(BaseModel):
+    """Metadata for pull requests response.
+
+    Attributes:
+        rate_limit: GitHub API rate limit information.
+    """
+
+    rate_limit: RateLimitInfo
+
+
+class PullRequestsResponse(BaseModel):
+    """API response wrapper for pull requests endpoint.
+
+    Attributes:
+        data: Container with list of pull requests.
+        meta: Response metadata including rate limit info.
+    """
+
+    data: PullRequestsData
+    meta: PullRequestsMeta
