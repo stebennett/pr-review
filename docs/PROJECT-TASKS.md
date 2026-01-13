@@ -727,12 +727,12 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the API endpoint to list open pull requests for a repository.
 
 **Deliverables:**
-- [ ] Implement `GET /api/organizations/{org}/repositories/{repo}/pulls`
-- [ ] Return list of PRs with all display fields
-- [ ] Include checks status for each PR
-- [ ] Return rate limit info in meta
-- [ ] Require authentication
-- [ ] Write endpoint tests
+- [x] Implement `GET /api/organizations/{org}/repositories/{repo}/pulls`
+- [x] Return list of PRs with all display fields
+- [x] Include checks status for each PR
+- [x] Return rate limit info in meta
+- [x] Require authentication
+- [x] Write endpoint tests
 
 **Files to Create/Modify:**
 ```
