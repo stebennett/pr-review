@@ -830,12 +830,12 @@ apps/web-fe/src/
 **Description:** Create the component that displays repositories and their pull requests.
 
 **Deliverables:**
-- [ ] Create RepoList component
-- [ ] Create usePullRequests hook to fetch PRs for selected org
-- [ ] Display repositories as collapsible sections
-- [ ] Show PR count badge for each repository
-- [ ] Handle loading and empty states
-- [ ] Write component tests
+- [x] Create RepoList component
+- [x] Create usePullRequests hook to fetch PRs for selected org
+- [x] Display repositories as collapsible sections
+- [x] Show PR count badge for each repository
+- [x] Handle loading and empty states
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
