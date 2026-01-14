@@ -314,7 +314,9 @@ class TestGitHubAPIService:
             mock_client.__aexit__ = AsyncMock()
             mock_client_class.return_value = mock_client
 
-            repos, rate_limit = await service.get_organization_repositories("test_token", "testuser")
+            repos, rate_limit = await service.get_organization_repositories(
+                "test_token", "testuser"
+            )
 
             assert len(repos) == 1
             assert repos[0].name == "personal-repo"
