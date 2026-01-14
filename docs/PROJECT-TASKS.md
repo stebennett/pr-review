@@ -871,13 +871,13 @@ apps/web-fe/src/
 **Description:** Create the component that displays individual pull request details.
 
 **Deliverables:**
-- [ ] Create PullRequestCard component
-- [ ] Display title as clickable link (opens GitHub in new tab)
-- [ ] Display colored label badges
-- [ ] Display author avatar and username
-- [ ] Display checks status icon (✓ green / ✗ red / ● yellow)
-- [ ] Display relative time (e.g., "3 days ago") using date-fns
-- [ ] Write component tests
+- [x] Create PullRequestCard component
+- [x] Display title as clickable link (opens GitHub in new tab)
+- [x] Display colored label badges
+- [x] Display author avatar and username
+- [x] Display checks status icon (✓ green / ✗ red / ● yellow)
+- [x] Display relative time (e.g., "3 days ago") using date-fns
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
