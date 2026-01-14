@@ -190,6 +190,9 @@ class GitHubAPIService:
     ) -> tuple[list[Organization], RateLimitInfo]:
         """Fetch organizations the user has access to.
 
+        This includes the user's personal account (for personal repos)
+        plus any organizations they are a member of.
+
         Args:
             access_token: GitHub OAuth access token.
 
@@ -200,6 +203,15 @@ class GitHubAPIService:
             httpx.HTTPStatusError: If the API request fails.
         """
         async with httpx.AsyncClient() as client:
+            # First fetch the user's own account info
+            user_response = await client.get(
+                f"{self.GITHUB_API_BASE}/user",
+                headers=self._get_headers(access_token),
+            )
+            user_response.raise_for_status()
+            user_data = user_response.json()
+
+            # Then fetch organizations
             response = await client.get(
                 f"{self.GITHUB_API_BASE}/user/orgs",
                 headers=self._get_headers(access_token),
@@ -209,25 +221,38 @@ class GitHubAPIService:
             rate_limit = self._parse_rate_limit(response)
             orgs_data = response.json()
 
+            # Start with user's personal account
             organizations = [
+                Organization(
+                    id=str(user_data["id"]),
+                    login=user_data["login"],
+                    avatar_url=user_data.get("avatar_url"),
+                )
+            ]
+
+            # Add organizations they belong to
+            organizations.extend([
                 Organization(
                     id=str(org["id"]),
                     login=org["login"],
                     avatar_url=org.get("avatar_url"),
                 )
                 for org in orgs_data
-            ]
+            ])
 
             return organizations, rate_limit
 
     async def get_organization_repositories(
         self, access_token: str, org: str
     ) -> tuple[list[Repository], RateLimitInfo]:
-        """Fetch repositories in an organization.
+        """Fetch repositories in an organization or user account.
+
+        For organizations, uses /orgs/{org}/repos endpoint.
+        For personal accounts, uses /users/{username}/repos endpoint.
 
         Args:
             access_token: GitHub OAuth access token.
-            org: Organization login name.
+            org: Organization or user login name.
 
         Returns:
             Tuple of (list of repositories, rate limit info).
@@ -236,11 +261,21 @@ class GitHubAPIService:
             httpx.HTTPStatusError: If the API request fails.
         """
         async with httpx.AsyncClient() as client:
+            # Try organization endpoint first
             response = await client.get(
                 f"{self.GITHUB_API_BASE}/orgs/{org}/repos",
                 headers=self._get_headers(access_token),
                 params={"per_page": 100, "sort": "updated"},
             )
+
+            # If org endpoint returns 404, try user endpoint
+            if response.status_code == 404:
+                response = await client.get(
+                    f"{self.GITHUB_API_BASE}/users/{org}/repos",
+                    headers=self._get_headers(access_token),
+                    params={"per_page": 100, "sort": "updated", "type": "owner"},
+                )
+
             response.raise_for_status()
 
             rate_limit = self._parse_rate_limit(response)

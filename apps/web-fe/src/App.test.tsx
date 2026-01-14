@@ -26,6 +26,11 @@ const mockUser = {
   avatar_url: "https://example.com/avatar.png",
 };
 
+const mockOrganizations = [
+  { id: "1", login: "org-one", avatar_url: "https://example.com/org1.png" },
+  { id: "2", login: "org-two", avatar_url: "https://example.com/org2.png" },
+];
+
 function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -86,7 +91,16 @@ describe("App", () => {
   describe("when authenticated", () => {
     beforeEach(() => {
       vi.spyOn(api, "hasAuthToken").mockReturnValue(true);
-      (api.api.get as Mock).mockResolvedValue(mockUser);
+      // Mock /api/auth/me for user info
+      (api.api.get as Mock).mockImplementation((path: string) => {
+        if (path === "/api/auth/me") {
+          return Promise.resolve(mockUser);
+        }
+        if (path === "/api/organizations") {
+          return Promise.resolve({ data: { organizations: mockOrganizations } });
+        }
+        return Promise.reject(new Error(`Unexpected path: ${path}`));
+      });
     });
 
     it("renders the dashboard with user info", async () => {
@@ -96,9 +110,6 @@ describe("App", () => {
         expect(screen.getByText("PR Review")).toBeInTheDocument();
       });
       expect(screen.getByText("testuser")).toBeInTheDocument();
-      expect(
-        screen.getByText("GitHub Pull Request monitoring application")
-      ).toBeInTheDocument();
     });
 
     it("displays user avatar when available", async () => {
@@ -124,6 +135,22 @@ describe("App", () => {
 
       await waitFor(() => {
         expect(screen.getByText("PR Review")).toBeInTheDocument();
+      });
+    });
+
+    it("loads and displays organizations", async () => {
+      renderApp(["/"]);
+
+      await waitFor(() => {
+        expect(screen.getByText("org-one")).toBeInTheDocument();
+      });
+    });
+
+    it("shows repository placeholder for selected organization", async () => {
+      renderApp(["/"]);
+
+      await waitFor(() => {
+        expect(screen.getByText("Repositories in org-one")).toBeInTheDocument();
       });
     });
   });
