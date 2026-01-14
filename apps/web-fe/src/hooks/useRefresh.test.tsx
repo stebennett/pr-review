@@ -125,11 +125,7 @@ describe("useRefresh", () => {
     });
 
     await act(async () => {
-      try {
-        await result.current.refresh();
-      } catch {
-        // Expected to throw
-      }
+      await result.current.refresh();
     });
 
     expect(result.current.isRateLimited).toBe(true);
@@ -146,11 +142,7 @@ describe("useRefresh", () => {
     });
 
     await act(async () => {
-      try {
-        await result.current.refresh();
-      } catch {
-        // Expected to throw
-      }
+      await result.current.refresh();
     });
 
     expect(result.current.error).toContain("session has expired");
@@ -166,11 +158,7 @@ describe("useRefresh", () => {
     });
 
     await act(async () => {
-      try {
-        await result.current.refresh();
-      } catch {
-        // Expected to throw
-      }
+      await result.current.refresh();
     });
 
     expect(result.current.error).toContain("Failed to refresh");
@@ -186,11 +174,7 @@ describe("useRefresh", () => {
     });
 
     await act(async () => {
-      try {
-        await result.current.refresh();
-      } catch {
-        // Expected to throw
-      }
+      await result.current.refresh();
     });
 
     expect(result.current.error).toContain("unexpected error");
@@ -206,11 +190,7 @@ describe("useRefresh", () => {
     });
 
     await act(async () => {
-      try {
-        await result.current.refresh();
-      } catch {
-        // Expected to throw
-      }
+      await result.current.refresh();
     });
 
     expect(result.current.error).not.toBeNull();

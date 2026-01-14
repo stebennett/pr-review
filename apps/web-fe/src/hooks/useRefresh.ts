@@ -71,7 +71,11 @@ export function useRefresh(): UseRefreshResult {
   });
 
   const refresh = useCallback(async () => {
-    await mutation.mutateAsync();
+    try {
+      await mutation.mutateAsync();
+    } catch {
+      // Error already handled in onError callback
+    }
   }, [mutation]);
 
   const clearError = useCallback(() => {
