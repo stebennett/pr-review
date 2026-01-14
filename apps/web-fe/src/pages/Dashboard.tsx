@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Navbar } from "../components/Navbar";
+import { RepoList } from "../components/RepoList";
 import { useOrganizations } from "../hooks/useOrganizations";
 import type { Organization } from "../types";
 
@@ -88,15 +89,12 @@ export default function Dashboard() {
           </div>
         ) : selectedOrg ? (
           <div>
-            {/* Placeholder for repository list (Task 4.6) */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
+            <div className="mb-4">
+              <h2 className="text-lg font-medium text-gray-900">
                 Repositories in {selectedOrg.login}
               </h2>
-              <p className="text-gray-500">
-                Repository list will be displayed here.
-              </p>
             </div>
+            <RepoList org={selectedOrg.login} />
           </div>
         ) : (
           <div className="text-center py-12">

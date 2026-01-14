@@ -157,17 +157,25 @@ describe("Dashboard", () => {
     });
   });
 
-  it("shows placeholder for repository list", async () => {
-    (api.api.get as Mock).mockResolvedValue({
-      data: { organizations: mockOrganizations },
+  it("renders repository list component for selected org", async () => {
+    const mockRepositories = [
+      { id: "1", name: "repo-1", full_name: "org-one/repo-1" },
+    ];
+
+    (api.api.get as Mock).mockImplementation((path: string) => {
+      if (path === "/api/organizations") {
+        return Promise.resolve({ data: { organizations: mockOrganizations } });
+      }
+      if (path.includes("/repositories")) {
+        return Promise.resolve({ data: { repositories: mockRepositories } });
+      }
+      return Promise.reject(new Error("Unknown path"));
     });
 
     render(<Dashboard />, { wrapper: createWrapper() });
 
     await waitFor(() => {
-      expect(
-        screen.getByText("Repository list will be displayed here.")
-      ).toBeInTheDocument();
+      expect(screen.getByText("org-one/repo-1")).toBeInTheDocument();
     });
   });
 
