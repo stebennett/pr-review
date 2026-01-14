@@ -16,13 +16,15 @@ def create_mock_github_api_service(
     pull_requests: list[PullRequest] | None = None,
     rate_limit: RateLimitInfo | None = None,
     error: Exception | None = None,
+    rate_limit_error: Exception | None = None,
 ) -> MagicMock:
     """Create a mock GitHub API service for testing.
 
     Args:
         pull_requests: List of pull requests to return.
         rate_limit: Rate limit info to return.
-        error: Exception to raise instead of returning data.
+        error: Exception to raise for get_repository_pull_requests.
+        rate_limit_error: Exception to raise for get_rate_limit.
 
     Returns:
         Mock GitHubAPIService instance.
@@ -37,6 +39,15 @@ def create_mock_github_api_service(
             remaining=4999, reset_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC)
         )
         mock_service.get_repository_pull_requests = AsyncMock(return_value=(prs, rl))
+
+    # Setup get_rate_limit mock
+    if rate_limit_error:
+        mock_service.get_rate_limit = AsyncMock(side_effect=rate_limit_error)
+    else:
+        rl = rate_limit or RateLimitInfo(
+            remaining=4999, reset_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC)
+        )
+        mock_service.get_rate_limit = AsyncMock(return_value=rl)
 
     return mock_service
 
@@ -485,3 +496,184 @@ class TestListPullRequests:
             assert author["avatar_url"] is not None
         finally:
             app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestRefreshPullRequests:
+    """Tests for POST /api/pulls/refresh."""
+
+    def test_requires_authentication(self, client):
+        """Should return 401/403 without Authorization header."""
+        response = client.post("/api/pulls/refresh")
+        # FastAPI HTTPBearer returns 403 for missing credentials
+        assert response.status_code in [401, 403]
+
+    def test_returns_rate_limit_info(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return rate limit information on successful refresh."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("test_access_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        rate_limit = RateLimitInfo(
+            remaining=4500, reset_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC)
+        )
+        mock_service = create_mock_github_api_service(rate_limit=rate_limit)
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert "data" in data
+            assert "message" in data["data"]
+            assert "meta" in data
+            assert "rate_limit" in data["meta"]
+            assert data["meta"]["rate_limit"]["remaining"] == 4500
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_success_message(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return success message on refresh."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("test_access_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        mock_service = create_mock_github_api_service()
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["data"]["message"] == "Refresh initiated successfully"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_handles_github_api_401_error(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 401 when GitHub token is invalid."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("invalid_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 401
+        error = httpx.HTTPStatusError(
+            "401 Unauthorized",
+            request=MagicMock(),
+            response=mock_response,
+        )
+        mock_service = create_mock_github_api_service(rate_limit_error=error)
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 401
+            data = response.json()
+            assert "invalid" in data["detail"].lower() or "expired" in data["detail"].lower()
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_handles_rate_limit_exceeded_from_github_403(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 429 when GitHub returns 403 (rate limited)."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("test_access_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+        error = httpx.HTTPStatusError(
+            "403 Forbidden",
+            request=MagicMock(),
+            response=mock_response,
+        )
+        mock_service = create_mock_github_api_service(rate_limit_error=error)
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 429
+            data = response.json()
+            assert "rate limit" in data["detail"].lower()
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_handles_rate_limit_exhausted(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 429 when rate limit remaining is 0."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("test_access_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        rate_limit = RateLimitInfo(
+            remaining=0, reset_at=datetime(2024, 1, 15, 11, 0, 0, tzinfo=UTC)
+        )
+        mock_service = create_mock_github_api_service(rate_limit=rate_limit)
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 429
+            data = response.json()
+            assert "rate limit" in data["detail"].lower()
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_handles_github_api_server_error(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 502 when GitHub API returns server error."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        encrypted_token = encrypt_token("test_access_token", test_settings.encryption_key)
+        test_user.github_access_token = encrypted_token
+        db_session.commit()
+
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        error = httpx.HTTPStatusError(
+            "500 Internal Server Error",
+            request=MagicMock(),
+            response=mock_response,
+        )
+        mock_service = create_mock_github_api_service(rate_limit_error=error)
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post("/api/pulls/refresh", headers=auth_headers)
+
+            assert response.status_code == 502
+            data = response.json()
+            assert "failed" in data["detail"].lower()
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_rejects_invalid_jwt_token(self, client):
+        """Should return 401 with invalid JWT token."""
+        response = client.post(
+            "/api/pulls/refresh",
+            headers={"Authorization": "Bearer invalid_token"},
+        )
+        assert response.status_code == 401

@@ -911,12 +911,12 @@ apps/web-fe/src/
 **Description:** Add refresh button to manually re-fetch PR data from GitHub.
 
 **Deliverables:**
-- [ ] Add refresh button to navbar
-- [ ] Implement `GET /api/pulls/refresh` endpoint (or trigger via existing endpoints)
-- [ ] Show loading state during refresh
-- [ ] Display rate limit info after refresh
-- [ ] Handle rate limit exceeded gracefully
-- [ ] Write tests
+- [x] Add refresh button to navbar
+- [x] Implement `POST /api/pulls/refresh` endpoint
+- [x] Show loading state during refresh
+- [x] Display rate limit info after refresh
+- [x] Handle rate limit exceeded gracefully
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```

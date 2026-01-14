@@ -1,12 +1,22 @@
 import { OrgSelector } from "./OrgSelector";
 import { useAuth } from "../hooks/useAuth";
-import type { Organization } from "../types";
+import type { Organization, RateLimitInfo } from "../types";
+import { formatDistanceToNow } from "date-fns";
 
 interface NavbarProps {
   organizations: Organization[];
   selectedOrg: Organization | null;
   onOrgSelect: (org: Organization) => void;
   isLoadingOrgs?: boolean;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  rateLimit?: RateLimitInfo | null;
+}
+
+function formatRateLimit(rateLimit: RateLimitInfo): string {
+  const resetTime = new Date(rateLimit.reset_at);
+  const resetIn = formatDistanceToNow(resetTime, { addSuffix: true });
+  return `${rateLimit.remaining} requests remaining, resets ${resetIn}`;
 }
 
 export function Navbar({
@@ -14,6 +24,9 @@ export function Navbar({
   selectedOrg,
   onOrgSelect,
   isLoadingOrgs = false,
+  onRefresh,
+  isRefreshing = false,
+  rateLimit,
 }: NavbarProps) {
   const { user, logout } = useAuth();
 
@@ -31,14 +44,20 @@ export function Navbar({
             />
           </div>
           <div className="flex items-center space-x-4">
-            {/* Placeholder for refresh button (Task 4.8) */}
+            {rateLimit && (
+              <span className="text-xs text-gray-500 hidden sm:inline">
+                {formatRateLimit(rateLimit)}
+              </span>
+            )}
             <button
               type="button"
-              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md"
-              title="Refresh"
+              onClick={onRefresh}
+              disabled={isRefreshing || !onRefresh}
+              className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+              title={rateLimit ? formatRateLimit(rateLimit) : "Refresh"}
             >
               <svg
-                className="h-5 w-5"
+                className={`h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`}
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"

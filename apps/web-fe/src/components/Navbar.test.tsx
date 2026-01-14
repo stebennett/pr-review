@@ -123,4 +123,61 @@ describe("Navbar", () => {
     const refreshButton = screen.getByTitle("Refresh");
     expect(refreshButton).toBeInTheDocument();
   });
+
+  it("calls onRefresh when refresh button is clicked", async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+
+    renderWithAuth({}, { onRefresh });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    await user.click(refreshButton);
+
+    expect(onRefresh).toHaveBeenCalled();
+  });
+
+  it("disables refresh button when isRefreshing is true", () => {
+    renderWithAuth({}, { onRefresh: vi.fn(), isRefreshing: true });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    expect(refreshButton).toBeDisabled();
+  });
+
+  it("disables refresh button when onRefresh is not provided", () => {
+    renderWithAuth({});
+
+    const refreshButton = screen.getByTitle("Refresh");
+    expect(refreshButton).toBeDisabled();
+  });
+
+  it("shows spinning animation when isRefreshing is true", () => {
+    renderWithAuth({}, { onRefresh: vi.fn(), isRefreshing: true });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    const svg = refreshButton.querySelector("svg");
+    expect(svg).toHaveClass("animate-spin");
+  });
+
+  it("displays rate limit info when available", () => {
+    const rateLimit = {
+      remaining: 4500,
+      reset_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), // 1 hour from now
+    };
+
+    renderWithAuth({}, { onRefresh: vi.fn(), rateLimit });
+
+    expect(screen.getByText(/4500 requests remaining/)).toBeInTheDocument();
+  });
+
+  it("shows rate limit in refresh button title", () => {
+    const rateLimit = {
+      remaining: 4500,
+      reset_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    };
+
+    renderWithAuth({}, { onRefresh: vi.fn(), rateLimit });
+
+    const refreshButton = screen.getByRole("button", { name: /4500 requests remaining/ });
+    expect(refreshButton).toBeInTheDocument();
+  });
 });

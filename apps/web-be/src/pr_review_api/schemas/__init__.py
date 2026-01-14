@@ -13,6 +13,9 @@ from pr_review_api.schemas.pull_request import (
     PullRequestsData,
     PullRequestsMeta,
     PullRequestsResponse,
+    RefreshData,
+    RefreshMeta,
+    RefreshResponse,
 )
 from pr_review_api.schemas.rate_limit import RateLimitInfo
 from pr_review_api.schemas.repository import (
@@ -33,6 +36,9 @@ __all__ = [
     "PullRequestsMeta",
     "PullRequestsResponse",
     "RateLimitInfo",
+    "RefreshData",
+    "RefreshMeta",
+    "RefreshResponse",
     "RepositoriesData",
     "RepositoriesResponse",
     "Repository",
