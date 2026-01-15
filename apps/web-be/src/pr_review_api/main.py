@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pr_review_api import __version__
 from pr_review_api.config import get_settings
-from pr_review_api.routers import auth, organizations, pulls, repositories
+from pr_review_api.routers import auth, organizations, pulls, repositories, schedules
 
 
 @asynccontextmanager
@@ -61,3 +61,4 @@ app.include_router(organizations.router)
 app.include_router(pulls.router)
 app.include_router(pulls.refresh_router)
 app.include_router(repositories.router)
+app.include_router(schedules.router)

@@ -23,6 +23,16 @@ from pr_review_api.schemas.repository import (
     RepositoriesResponse,
     Repository,
 )
+from pr_review_api.schemas.schedule import (
+    RepositoryRef,
+    ScheduleCreate,
+    ScheduleData,
+    ScheduleResponse,
+    SchedulesData,
+    SchedulesResponse,
+    ScheduleUpdate,
+    SingleScheduleResponse,
+)
 
 __all__ = [
     "Author",
@@ -42,6 +52,14 @@ __all__ = [
     "RepositoriesData",
     "RepositoriesResponse",
     "Repository",
+    "RepositoryRef",
+    "ScheduleCreate",
+    "ScheduleData",
+    "ScheduleResponse",
+    "SchedulesData",
+    "SchedulesResponse",
+    "ScheduleUpdate",
+    "SingleScheduleResponse",
     "TokenResponse",
     "UserResponse",
 ]
