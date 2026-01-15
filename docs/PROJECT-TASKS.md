@@ -939,11 +939,11 @@ apps/web-fe/src/components/Navbar.tsx (add refresh button)
 **Description:** Create SQLAlchemy models and migrations for notification schedules.
 
 **Deliverables:**
-- [ ] Create NotificationSchedule model
-- [ ] Create ScheduleRepository model (many-to-many)
-- [ ] Create CachedPullRequest model
-- [ ] Create Alembic migration
-- [ ] Write model tests
+- [x] Create NotificationSchedule model
+- [x] Create ScheduleRepository model (many-to-many)
+- [x] Create CachedPullRequest model
+- [x] Create Alembic migration
+- [x] Write model tests
 
 **Files to Create/Modify:**
 ```

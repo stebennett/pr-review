@@ -231,14 +231,16 @@ class GitHubAPIService:
             ]
 
             # Add organizations they belong to
-            organizations.extend([
-                Organization(
-                    id=str(org["id"]),
-                    login=org["login"],
-                    avatar_url=org.get("avatar_url"),
-                )
-                for org in orgs_data
-            ])
+            organizations.extend(
+                [
+                    Organization(
+                        id=str(org["id"]),
+                        login=org["login"],
+                        avatar_url=org.get("avatar_url"),
+                    )
+                    for org in orgs_data
+                ]
+            )
 
             return organizations, rate_limit
 
@@ -465,7 +467,6 @@ class GitHubAPIService:
             if has_pending:
                 return "pending", rate_limit
             return "pass", rate_limit
-
 
     async def get_rate_limit(self, access_token: str) -> RateLimitInfo:
         """Fetch current rate limit status from GitHub API.
