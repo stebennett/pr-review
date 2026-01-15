@@ -16,6 +16,7 @@ vi.mock("../services/api", async () => {
       put: vi.fn(),
       delete: vi.fn(),
     },
+    ApiError: actual.ApiError,
   };
 });
 
@@ -35,6 +36,9 @@ function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
+        retry: false,
+      },
+      mutations: {
         retry: false,
       },
     },
@@ -190,6 +194,133 @@ describe("Dashboard", () => {
       expect(screen.getByText("PR Review")).toBeInTheDocument();
       expect(screen.getByText("testuser")).toBeInTheDocument();
       expect(screen.getByText("Sign out")).toBeInTheDocument();
+    });
+  });
+
+  it("renders refresh button", async () => {
+    (api.api.get as Mock).mockResolvedValue({
+      data: { organizations: mockOrganizations },
+    });
+
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      const refreshButton = screen.getByTitle("Refresh");
+      expect(refreshButton).toBeInTheDocument();
+    });
+  });
+
+  it("calls refresh API when refresh button is clicked", async () => {
+    const user = userEvent.setup();
+
+    (api.api.get as Mock).mockResolvedValue({
+      data: { organizations: mockOrganizations },
+    });
+
+    (api.api.post as Mock).mockResolvedValue({
+      data: { message: "Refresh initiated successfully" },
+      meta: { rate_limit: { remaining: 4500, reset_at: "2024-01-15T11:00:00Z" } },
+    });
+
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Refresh")).toBeInTheDocument();
+    });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    await user.click(refreshButton);
+
+    await waitFor(() => {
+      expect(api.api.post).toHaveBeenCalledWith("/api/pulls/refresh", {});
+    });
+  });
+
+  it("displays rate limit info after successful refresh", async () => {
+    const user = userEvent.setup();
+
+    (api.api.get as Mock).mockResolvedValue({
+      data: { organizations: mockOrganizations },
+    });
+
+    (api.api.post as Mock).mockResolvedValue({
+      data: { message: "Refresh initiated successfully" },
+      meta: { rate_limit: { remaining: 4500, reset_at: new Date(Date.now() + 60 * 60 * 1000).toISOString() } },
+    });
+
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Refresh")).toBeInTheDocument();
+    });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    await user.click(refreshButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/4500 requests remaining/)).toBeInTheDocument();
+    });
+  });
+
+  it("displays error message when refresh fails with rate limit exceeded", async () => {
+    const user = userEvent.setup();
+
+    (api.api.get as Mock).mockResolvedValue({
+      data: { organizations: mockOrganizations },
+    });
+
+    (api.api.post as Mock).mockRejectedValue(
+      new api.ApiError(429, '{"detail": "GitHub API rate limit exceeded"}')
+    );
+
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Refresh")).toBeInTheDocument();
+    });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    await user.click(refreshButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/rate limit/i)).toBeInTheDocument();
+    });
+  });
+
+  it("allows dismissing error message", async () => {
+    const user = userEvent.setup();
+
+    (api.api.get as Mock).mockResolvedValue({
+      data: { organizations: mockOrganizations },
+    });
+
+    (api.api.post as Mock).mockRejectedValue(
+      new api.ApiError(500, "Internal Server Error")
+    );
+
+    render(<Dashboard />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByTitle("Refresh")).toBeInTheDocument();
+    });
+
+    const refreshButton = screen.getByTitle("Refresh");
+    await user.click(refreshButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Failed to refresh/i)).toBeInTheDocument();
+    });
+
+    // Find and click the dismiss button (the X button)
+    const dismissButtons = screen.getAllByRole("button");
+    const dismissButton = dismissButtons.find(
+      (btn) => btn.querySelector('svg path[d*="4.293"]')
+    );
+    expect(dismissButton).toBeDefined();
+    await user.click(dismissButton!);
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Failed to refresh/i)).not.toBeInTheDocument();
     });
   });
 });

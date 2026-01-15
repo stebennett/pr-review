@@ -59,4 +59,5 @@ async def health_check() -> dict[str, str]:
 app.include_router(auth.router)
 app.include_router(organizations.router)
 app.include_router(pulls.router)
+app.include_router(pulls.refresh_router)
 app.include_router(repositories.router)

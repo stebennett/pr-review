@@ -467,6 +467,37 @@ class GitHubAPIService:
             return "pass", rate_limit
 
 
+    async def get_rate_limit(self, access_token: str) -> RateLimitInfo:
+        """Fetch current rate limit status from GitHub API.
+
+        Makes a lightweight API call to /rate_limit endpoint to get
+        current rate limit information without counting against limits.
+
+        Args:
+            access_token: GitHub OAuth access token.
+
+        Returns:
+            RateLimitInfo with remaining requests and reset time.
+
+        Raises:
+            httpx.HTTPStatusError: If the API request fails.
+        """
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{self.GITHUB_API_BASE}/rate_limit",
+                headers=self._get_headers(access_token),
+            )
+            response.raise_for_status()
+
+            data = response.json()
+            core = data.get("resources", {}).get("core", {})
+            remaining = core.get("remaining", 0)
+            reset_timestamp = core.get("reset", 0)
+            reset_at = datetime.fromtimestamp(reset_timestamp, tz=UTC)
+
+            return RateLimitInfo(remaining=remaining, reset_at=reset_at)
+
+
 def get_github_api_service() -> GitHubAPIService:
     """Factory function for dependency injection.
 

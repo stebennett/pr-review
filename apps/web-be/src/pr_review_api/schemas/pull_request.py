@@ -83,3 +83,35 @@ class PullRequestsResponse(BaseModel):
 
     data: PullRequestsData
     meta: PullRequestsMeta
+
+
+class RefreshData(BaseModel):
+    """Container for refresh response data.
+
+    Attributes:
+        message: Success message.
+    """
+
+    message: str
+
+
+class RefreshMeta(BaseModel):
+    """Metadata for refresh response.
+
+    Attributes:
+        rate_limit: GitHub API rate limit information.
+    """
+
+    rate_limit: RateLimitInfo
+
+
+class RefreshResponse(BaseModel):
+    """API response wrapper for refresh endpoint.
+
+    Attributes:
+        data: Container with success message.
+        meta: Response metadata including rate limit info.
+    """
+
+    data: RefreshData
+    meta: RefreshMeta
