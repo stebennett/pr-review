@@ -1098,11 +1098,11 @@ apps/web-be/src/pr_review_api/
 **Description:** Create the settings page for managing email and notification schedules.
 
 **Deliverables:**
-- [ ] Create Settings page component
-- [ ] Add email address input with save button
-- [ ] Add section for notification schedules
-- [ ] Add navigation link in navbar
-- [ ] Write page tests
+- [x] Create Settings page component
+- [x] Add email address input with save button
+- [x] Add section for notification schedules
+- [x] Add navigation link in navbar
+- [x] Write page tests
 
 **Files to Create/Modify:**
 ```

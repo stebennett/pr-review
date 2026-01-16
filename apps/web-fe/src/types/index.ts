@@ -63,6 +63,10 @@ export interface RateLimitInfo {
   reset_at: string;
 }
 
+export interface UserSettings {
+  email: string | null;
+}
+
 export interface ApiResponse<T> {
   data: T;
   meta?: {
