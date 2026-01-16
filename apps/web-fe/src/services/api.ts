@@ -1,3 +1,5 @@
+import type { UserSettings, ApiResponse } from "../types";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 class ApiError extends Error {
@@ -87,21 +89,23 @@ export function hasAuthToken(): boolean {
 }
 
 // Settings API
-import type { UserSettings, ApiResponse } from "../types";
+interface SettingsData {
+  settings: UserSettings;
+}
 
 export async function getSettings(): Promise<UserSettings> {
-  const response = await api.get<ApiResponse<UserSettings>>("/api/settings");
-  return response.data;
+  const response = await api.get<ApiResponse<SettingsData>>("/api/settings");
+  return response.data.settings;
 }
 
 export async function updateSettings(settings: {
   email: string;
 }): Promise<UserSettings> {
-  const response = await api.put<ApiResponse<UserSettings>>(
+  const response = await api.put<ApiResponse<SettingsData>>(
     "/api/settings",
     settings
   );
-  return response.data;
+  return response.data.settings;
 }
 
 export { ApiError };
