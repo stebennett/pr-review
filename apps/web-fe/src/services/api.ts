@@ -86,4 +86,22 @@ export function hasAuthToken(): boolean {
   return !!localStorage.getItem("token");
 }
 
+// Settings API
+import type { UserSettings, ApiResponse } from "../types";
+
+export async function getSettings(): Promise<UserSettings> {
+  const response = await api.get<ApiResponse<UserSettings>>("/api/settings");
+  return response.data;
+}
+
+export async function updateSettings(settings: {
+  email: string;
+}): Promise<UserSettings> {
+  const response = await api.put<ApiResponse<UserSettings>>(
+    "/api/settings",
+    settings
+  );
+  return response.data;
+}
+
 export { ApiError };

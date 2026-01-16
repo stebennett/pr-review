@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi } from "vitest";
 import { Navbar } from "./Navbar";
 import { AuthContext, type AuthContextType } from "../contexts/AuthContext";
@@ -40,9 +41,11 @@ function renderWithAuth(
   };
 
   return render(
-    <AuthContext.Provider value={defaultAuthValue}>
-      <Navbar {...defaultProps} />
-    </AuthContext.Provider>
+    <MemoryRouter>
+      <AuthContext.Provider value={defaultAuthValue}>
+        <Navbar {...defaultProps} />
+      </AuthContext.Provider>
+    </MemoryRouter>
   );
 }
 
