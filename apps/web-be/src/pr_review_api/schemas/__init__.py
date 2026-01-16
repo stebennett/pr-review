@@ -24,6 +24,9 @@ from pr_review_api.schemas.repository import (
     Repository,
 )
 from pr_review_api.schemas.schedule import (
+    InaccessibleRepository,
+    PATValidationResult,
+    RepositoryAccessResult,
     RepositoryRef,
     ScheduleCreate,
     ScheduleData,
@@ -36,11 +39,13 @@ from pr_review_api.schemas.schedule import (
 
 __all__ = [
     "Author",
+    "InaccessibleRepository",
     "Label",
     "LoginResponse",
     "Organization",
     "OrganizationsData",
     "OrganizationsResponse",
+    "PATValidationResult",
     "PullRequest",
     "PullRequestsData",
     "PullRequestsMeta",
@@ -52,6 +57,7 @@ __all__ = [
     "RepositoriesData",
     "RepositoriesResponse",
     "Repository",
+    "RepositoryAccessResult",
     "RepositoryRef",
     "ScheduleCreate",
     "ScheduleData",

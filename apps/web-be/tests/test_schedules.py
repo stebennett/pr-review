@@ -1,10 +1,19 @@
 """Tests for schedules CRUD endpoints."""
 
+from unittest.mock import AsyncMock
+
 from pr_review_shared import decrypt_token, encrypt_token
 
 from pr_review_api.config import get_settings
 from pr_review_api.main import app
 from pr_review_api.models.schedule import NotificationSchedule, ScheduleRepository
+from pr_review_api.schemas import (
+    InaccessibleRepository,
+    PATValidationResult,
+    RepositoryAccessResult,
+    RepositoryRef,
+)
+from pr_review_api.services.github import get_github_api_service
 
 
 class TestListSchedules:
@@ -16,9 +25,7 @@ class TestListSchedules:
         # FastAPI HTTPBearer returns 403 for missing credentials
         assert response.status_code in [401, 403]
 
-    def test_returns_empty_list_for_new_user(
-        self, client, test_user, auth_headers, test_settings
-    ):
+    def test_returns_empty_list_for_new_user(self, client, test_user, auth_headers, test_settings):
         """Should return empty list when user has no schedules."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
@@ -76,9 +83,7 @@ class TestListSchedules:
         schedule_names = {s["name"] for s in schedules}
         assert schedule_names == {"Daily Check", "Weekly Check"}
 
-    def test_user_isolation(
-        self, client, test_user, auth_headers, db_session, test_settings
-    ):
+    def test_user_isolation(self, client, test_user, auth_headers, db_session, test_settings):
         """Should not return schedules belonging to other users."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
@@ -134,44 +139,65 @@ class TestCreateSchedule:
         """Should create a new schedule with encrypted PAT."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
-        response = client.post(
-            "/api/schedules",
-            headers=auth_headers,
-            json={
-                "name": "Daily PR Check",
-                "cron_expression": "0 9 * * 1-5",
-                "github_pat": "ghp_testtoken123",
-                "repositories": [
-                    {"organization": "my-org", "repository": "repo-1"},
-                    {"organization": "my-org", "repository": "repo-2"},
+        # Mock the GitHub service to return valid PAT
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True, scopes=["read:org", "repo"], missing_scopes=[], username="testuser"
+            )
+        )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[
+                    RepositoryRef(organization="my-org", repository="repo-1"),
+                    RepositoryRef(organization="my-org", repository="repo-2"),
                 ],
-                "is_active": True,
-            },
+                inaccessible=[],
+            )
         )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
 
-        assert response.status_code == 201
-        data = response.json()
-        schedule = data["data"]["schedule"]
-        assert schedule["name"] == "Daily PR Check"
-        assert schedule["cron_expression"] == "0 9 * * 1-5"
-        assert schedule["is_active"] is True
-        assert len(schedule["repositories"]) == 2
-        assert "id" in schedule
-        assert "created_at" in schedule
-        assert "updated_at" in schedule
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Daily PR Check",
+                    "cron_expression": "0 9 * * 1-5",
+                    "github_pat": "ghp_testtoken123",
+                    "repositories": [
+                        {"organization": "my-org", "repository": "repo-1"},
+                        {"organization": "my-org", "repository": "repo-2"},
+                    ],
+                    "is_active": True,
+                },
+            )
 
-        # Verify PAT is not in response
-        assert "github_pat" not in schedule
+            assert response.status_code == 201
+            data = response.json()
+            schedule = data["data"]["schedule"]
+            assert schedule["name"] == "Daily PR Check"
+            assert schedule["cron_expression"] == "0 9 * * 1-5"
+            assert schedule["is_active"] is True
+            assert len(schedule["repositories"]) == 2
+            assert "id" in schedule
+            assert "created_at" in schedule
+            assert "updated_at" in schedule
 
-        # Verify PAT is encrypted in database
-        db_schedule = (
-            db_session.query(NotificationSchedule)
-            .filter(NotificationSchedule.id == schedule["id"])
-            .first()
-        )
-        assert db_schedule is not None
-        decrypted_pat = decrypt_token(db_schedule.github_pat, test_settings.encryption_key)
-        assert decrypted_pat == "ghp_testtoken123"
+            # Verify PAT is not in response
+            assert "github_pat" not in schedule
+
+            # Verify PAT is encrypted in database
+            db_schedule = (
+                db_session.query(NotificationSchedule)
+                .filter(NotificationSchedule.id == schedule["id"])
+                .first()
+            )
+            assert db_schedule is not None
+            decrypted_pat = decrypt_token(db_schedule.github_pat, test_settings.encryption_key)
+            assert decrypted_pat == "ghp_testtoken123"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
 
     def test_creates_schedule_with_default_is_active(
         self, client, test_user, auth_headers, db_session, test_settings
@@ -179,20 +205,38 @@ class TestCreateSchedule:
         """Should default is_active to True if not provided."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
-        response = client.post(
-            "/api/schedules",
-            headers=auth_headers,
-            json={
-                "name": "Test Schedule",
-                "cron_expression": "0 9 * * *",
-                "github_pat": "ghp_test",
-                "repositories": [{"organization": "org", "repository": "repo"}],
-            },
+        # Mock the GitHub service
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True, scopes=["read:org", "repo"], missing_scopes=[], username="testuser"
+            )
         )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[RepositoryRef(organization="org", repository="repo")],
+                inaccessible=[],
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
 
-        assert response.status_code == 201
-        data = response.json()
-        assert data["data"]["schedule"]["is_active"] is True
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Test Schedule",
+                    "cron_expression": "0 9 * * *",
+                    "github_pat": "ghp_test",
+                    "repositories": [{"organization": "org", "repository": "repo"}],
+                },
+            )
+
+            assert response.status_code == 201
+            data = response.json()
+            assert data["data"]["schedule"]["is_active"] is True
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
 
     def test_validates_missing_required_fields(
         self, client, test_user, auth_headers, test_settings
@@ -248,9 +292,7 @@ class TestCreateSchedule:
         )
         assert response.status_code == 422
 
-    def test_validates_empty_repositories(
-        self, client, test_user, auth_headers, test_settings
-    ):
+    def test_validates_empty_repositories(self, client, test_user, auth_headers, test_settings):
         """Should return 422 for empty repositories list."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
@@ -370,9 +412,7 @@ class TestUpdateSchedule:
         )
         assert response.status_code in [401, 403]
 
-    def test_updates_single_field(
-        self, client, test_user, auth_headers, db_session, test_settings
-    ):
+    def test_updates_single_field(self, client, test_user, auth_headers, db_session, test_settings):
         """Should update only the provided field."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
@@ -410,9 +450,7 @@ class TestUpdateSchedule:
         assert result["is_active"] is True  # Unchanged
         assert len(result["repositories"]) == 1  # Unchanged
 
-    def test_updates_all_fields(
-        self, client, test_user, auth_headers, db_session, test_settings
-    ):
+    def test_updates_all_fields(self, client, test_user, auth_headers, db_session, test_settings):
         """Should update all provided fields."""
         app.dependency_overrides[get_settings] = lambda: test_settings
 
@@ -436,34 +474,52 @@ class TestUpdateSchedule:
         db_session.add(repo)
         db_session.commit()
 
-        response = client.put(
-            f"/api/schedules/{schedule.id}",
-            headers=auth_headers,
-            json={
-                "name": "Updated Name",
-                "cron_expression": "0 10 * * *",
-                "github_pat": "ghp_newtoken",
-                "repositories": [
-                    {"organization": "new-org", "repository": "new-repo"},
-                ],
-                "is_active": False,
-            },
+        # Mock the GitHub service for PAT validation
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True, scopes=["read:org", "repo"], missing_scopes=[], username="testuser"
+            )
         )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[RepositoryRef(organization="new-org", repository="new-repo")],
+                inaccessible=[],
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
 
-        assert response.status_code == 200
-        data = response.json()
-        result = data["data"]["schedule"]
-        assert result["name"] == "Updated Name"
-        assert result["cron_expression"] == "0 10 * * *"
-        assert result["is_active"] is False
-        assert len(result["repositories"]) == 1
-        assert result["repositories"][0]["organization"] == "new-org"
-        assert result["repositories"][0]["repository"] == "new-repo"
+        try:
+            response = client.put(
+                f"/api/schedules/{schedule.id}",
+                headers=auth_headers,
+                json={
+                    "name": "Updated Name",
+                    "cron_expression": "0 10 * * *",
+                    "github_pat": "ghp_newtoken",
+                    "repositories": [
+                        {"organization": "new-org", "repository": "new-repo"},
+                    ],
+                    "is_active": False,
+                },
+            )
 
-        # Verify PAT is encrypted with new value
-        db_session.refresh(schedule)
-        decrypted_pat = decrypt_token(schedule.github_pat, test_settings.encryption_key)
-        assert decrypted_pat == "ghp_newtoken"
+            assert response.status_code == 200
+            data = response.json()
+            result = data["data"]["schedule"]
+            assert result["name"] == "Updated Name"
+            assert result["cron_expression"] == "0 10 * * *"
+            assert result["is_active"] is False
+            assert len(result["repositories"]) == 1
+            assert result["repositories"][0]["organization"] == "new-org"
+            assert result["repositories"][0]["repository"] == "new-repo"
+
+            # Verify PAT is encrypted with new value
+            db_session.refresh(schedule)
+            decrypted_pat = decrypt_token(schedule.github_pat, test_settings.encryption_key)
+            assert decrypted_pat == "ghp_newtoken"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
 
     def test_updates_repositories_replaces_all(
         self, client, test_user, auth_headers, db_session, test_settings
@@ -718,3 +774,335 @@ class TestDeleteSchedule:
             .first()
         )
         assert exists is not None
+
+
+class TestPATValidationOnCreate:
+    """Tests for PAT validation when creating schedules."""
+
+    def test_rejects_invalid_pat(self, client, test_user, auth_headers, test_settings):
+        """Should return 400 for invalid PAT."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return invalid PAT
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=False,
+                scopes=[],
+                missing_scopes=[],
+                username=None,
+                error_message="Invalid or expired GitHub Personal Access Token",
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Test Schedule",
+                    "cron_expression": "0 9 * * 1-5",
+                    "github_pat": "invalid_token",
+                    "repositories": [{"organization": "my-org", "repository": "my-repo"}],
+                },
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_VALIDATION_FAILED"
+            assert "Invalid" in data["detail"]["message"]
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_rejects_pat_with_missing_scopes(self, client, test_user, auth_headers, test_settings):
+        """Should return 400 for PAT missing required scopes."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return missing scopes
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:user"],
+                missing_scopes=["read:org", "repo"],
+                username="testuser",
+                error_message=None,
+            )
+        )
+        mock_service.REQUIRED_PAT_SCOPES = {"read:org", "repo"}
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Test Schedule",
+                    "cron_expression": "0 9 * * 1-5",
+                    "github_pat": "ghp_limited_scopes",
+                    "repositories": [{"organization": "my-org", "repository": "my-repo"}],
+                },
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_MISSING_SCOPES"
+            assert "read:org" in data["detail"]["missing_scopes"]
+            assert "repo" in data["detail"]["missing_scopes"]
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_rejects_pat_without_repo_access(self, client, test_user, auth_headers, test_settings):
+        """Should return 400 when PAT cannot access specified repositories."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return valid PAT but inaccessible repos
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:org", "repo"],
+                missing_scopes=[],
+                username="testuser",
+                error_message=None,
+            )
+        )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[],
+                inaccessible=[
+                    InaccessibleRepository(
+                        organization="my-org",
+                        repository="private-repo",
+                        reason="Repository not found or no access",
+                    )
+                ],
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Test Schedule",
+                    "cron_expression": "0 9 * * 1-5",
+                    "github_pat": "ghp_valid_token",
+                    "repositories": [{"organization": "my-org", "repository": "private-repo"}],
+                },
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_REPOSITORY_ACCESS_DENIED"
+            assert len(data["detail"]["inaccessible_repositories"]) == 1
+            assert data["detail"]["inaccessible_repositories"][0]["repository"] == "private-repo"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_creates_schedule_with_valid_pat(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should create schedule when PAT validation passes."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return valid PAT with access
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:org", "repo"],
+                missing_scopes=[],
+                username="testuser",
+                error_message=None,
+            )
+        )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[RepositoryRef(organization="my-org", repository="my-repo")],
+                inaccessible=[],
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules",
+                headers=auth_headers,
+                json={
+                    "name": "Valid Schedule",
+                    "cron_expression": "0 9 * * 1-5",
+                    "github_pat": "ghp_valid_token",
+                    "repositories": [{"organization": "my-org", "repository": "my-repo"}],
+                },
+            )
+
+            assert response.status_code == 201
+            data = response.json()
+            assert data["data"]["schedule"]["name"] == "Valid Schedule"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestPATValidationOnUpdate:
+    """Tests for PAT validation when updating schedules."""
+
+    def test_rejects_invalid_pat_on_update(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 400 when updating with invalid PAT."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create an existing schedule (bypassing validation by adding directly)
+        encrypted_pat = encrypt_token("ghp_original", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Original",
+            cron_expression="0 9 * * 1-5",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        repo = ScheduleRepository(
+            schedule_id=schedule.id,
+            organization="my-org",
+            repository="my-repo",
+        )
+        db_session.add(repo)
+        db_session.commit()
+
+        # Mock the GitHub service to return invalid PAT
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=False,
+                scopes=[],
+                missing_scopes=[],
+                username=None,
+                error_message="Invalid or expired GitHub Personal Access Token",
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.put(
+                f"/api/schedules/{schedule.id}",
+                headers=auth_headers,
+                json={"github_pat": "invalid_new_token"},
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_VALIDATION_FAILED"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_validates_pat_against_existing_repos(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should validate new PAT against existing repositories."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create an existing schedule with repos
+        encrypted_pat = encrypt_token("ghp_original", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Original",
+            cron_expression="0 9 * * 1-5",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        repo = ScheduleRepository(
+            schedule_id=schedule.id,
+            organization="my-org",
+            repository="existing-repo",
+        )
+        db_session.add(repo)
+        db_session.commit()
+
+        # Mock the GitHub service
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:org", "repo"],
+                missing_scopes=[],
+                username="testuser",
+                error_message=None,
+            )
+        )
+        mock_service.validate_repository_access = AsyncMock(
+            return_value=RepositoryAccessResult(
+                accessible=[RepositoryRef(organization="my-org", repository="existing-repo")],
+                inaccessible=[],
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.put(
+                f"/api/schedules/{schedule.id}",
+                headers=auth_headers,
+                json={"github_pat": "ghp_new_valid_token"},
+            )
+
+            assert response.status_code == 200
+
+            # Verify repository access was validated
+            mock_service.validate_repository_access.assert_called_once()
+            call_args = mock_service.validate_repository_access.call_args
+            repos = call_args[0][1]
+            assert len(repos) == 1
+            assert repos[0].repository == "existing-repo"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_skips_validation_when_pat_not_updated(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should not validate PAT when only other fields are updated."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create an existing schedule
+        encrypted_pat = encrypt_token("ghp_original", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Original",
+            cron_expression="0 9 * * 1-5",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        repo = ScheduleRepository(
+            schedule_id=schedule.id,
+            organization="my-org",
+            repository="my-repo",
+        )
+        db_session.add(repo)
+        db_session.commit()
+
+        # Mock the GitHub service
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock()
+        mock_service.validate_repository_access = AsyncMock()
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.put(
+                f"/api/schedules/{schedule.id}",
+                headers=auth_headers,
+                json={"name": "Updated Name"},  # Only updating name, not PAT
+            )
+
+            assert response.status_code == 200
+            # Validation should not have been called
+            mock_service.validate_pat.assert_not_called()
+            mock_service.validate_repository_access.assert_not_called()
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)

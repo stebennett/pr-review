@@ -23,8 +23,69 @@ from pr_review_api.schemas.schedule import (
     ScheduleUpdate,
     SingleScheduleResponse,
 )
+from pr_review_api.services.github import GitHubAPIService, get_github_api_service
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
+
+
+async def _validate_pat_and_repositories(
+    pat: str,
+    repositories: list[RepositoryRef],
+    github_service: GitHubAPIService,
+) -> None:
+    """Validate PAT and repository access before saving a schedule.
+
+    Args:
+        pat: GitHub Personal Access Token to validate.
+        repositories: List of repositories to check access for.
+        github_service: GitHub API service instance.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid, missing scopes, or can't access repos.
+    """
+    # Validate PAT
+    pat_result = await github_service.validate_pat(pat)
+
+    if not pat_result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_VALIDATION_FAILED",
+                "message": pat_result.error_message or "Invalid GitHub Personal Access Token",
+            },
+        )
+
+    # Check for missing scopes (classic PATs only)
+    if pat_result.missing_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_MISSING_SCOPES",
+                "message": "The provided GitHub PAT is missing required scopes",
+                "missing_scopes": pat_result.missing_scopes,
+                "required_scopes": list(github_service.REQUIRED_PAT_SCOPES),
+            },
+        )
+
+    # Validate repository access
+    access_result = await github_service.validate_repository_access(pat, repositories)
+
+    if access_result.inaccessible:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_REPOSITORY_ACCESS_DENIED",
+                "message": "The provided GitHub PAT cannot access one or more repositories",
+                "inaccessible_repositories": [
+                    {
+                        "organization": repo.organization,
+                        "repository": repo.repository,
+                        "reason": repo.reason,
+                    }
+                    for repo in access_result.inaccessible
+                ],
+            },
+        )
 
 
 def _schedule_to_response(schedule: NotificationSchedule) -> ScheduleResponse:
@@ -66,9 +127,7 @@ async def list_schedules(
         SchedulesResponse with list of user's schedules.
     """
     schedules = (
-        db.query(NotificationSchedule)
-        .filter(NotificationSchedule.user_id == current_user.id)
-        .all()
+        db.query(NotificationSchedule).filter(NotificationSchedule.user_id == current_user.id).all()
     )
 
     schedule_responses = [_schedule_to_response(s) for s in schedules]
@@ -82,21 +141,33 @@ async def create_schedule(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
 ) -> SingleScheduleResponse:
     """Create a new notification schedule.
 
-    Encrypts the GitHub PAT before storing and creates associated
-    repository entries.
+    Validates the GitHub PAT and repository access before encrypting
+    and storing the schedule with its repository entries.
 
     Args:
         schedule_data: Schedule creation data.
         current_user: Current authenticated user from JWT.
         db: Database session.
         settings: Application settings for encryption key.
+        github_service: GitHub API service for PAT validation.
 
     Returns:
         SingleScheduleResponse with the created schedule.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid, missing scopes, or can't access repos.
     """
+    # Validate PAT and repository access before saving
+    await _validate_pat_and_repositories(
+        schedule_data.github_pat,
+        schedule_data.repositories,
+        github_service,
+    )
+
     # Encrypt the GitHub PAT before storing
     encrypted_pat = encrypt_token(schedule_data.github_pat, settings.encryption_key)
 
@@ -123,9 +194,7 @@ async def create_schedule(
     db.commit()
     db.refresh(schedule)
 
-    return SingleScheduleResponse(
-        data=ScheduleData(schedule=_schedule_to_response(schedule))
-    )
+    return SingleScheduleResponse(data=ScheduleData(schedule=_schedule_to_response(schedule)))
 
 
 @router.get("/{schedule_id}", response_model=SingleScheduleResponse)
@@ -162,9 +231,7 @@ async def get_schedule(
             detail="Schedule not found",
         )
 
-    return SingleScheduleResponse(
-        data=ScheduleData(schedule=_schedule_to_response(schedule))
-    )
+    return SingleScheduleResponse(data=ScheduleData(schedule=_schedule_to_response(schedule)))
 
 
 @router.put("/{schedule_id}", response_model=SingleScheduleResponse)
@@ -174,11 +241,12 @@ async def update_schedule(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
 ) -> SingleScheduleResponse:
     """Update a notification schedule.
 
     Supports partial updates - only provided fields are updated.
-    If github_pat is provided, it will be encrypted before storing.
+    If github_pat is provided, it will be validated and encrypted before storing.
     If repositories is provided, it replaces all existing associations.
 
     Args:
@@ -187,12 +255,14 @@ async def update_schedule(
         current_user: Current authenticated user from JWT.
         db: Database session.
         settings: Application settings for encryption key.
+        github_service: GitHub API service for PAT validation.
 
     Returns:
         SingleScheduleResponse with the updated schedule.
 
     Raises:
         HTTPException: 404 if schedule not found or doesn't belong to user.
+        HTTPException: 400 if PAT is invalid, missing scopes, or can't access repos.
     """
     schedule = (
         db.query(NotificationSchedule)
@@ -209,6 +279,23 @@ async def update_schedule(
             detail="Schedule not found",
         )
 
+    # Validate PAT if a new one is provided
+    if schedule_data.github_pat is not None:
+        # Determine which repositories to validate against
+        repos_to_validate = schedule_data.repositories
+        if repos_to_validate is None:
+            # Use existing repositories if not updating them
+            repos_to_validate = [
+                RepositoryRef(organization=r.organization, repository=r.repository)
+                for r in schedule.repositories
+            ]
+
+        await _validate_pat_and_repositories(
+            schedule_data.github_pat,
+            repos_to_validate,
+            github_service,
+        )
+
     # Update provided fields
     if schedule_data.name is not None:
         schedule.name = schedule_data.name
@@ -222,9 +309,7 @@ async def update_schedule(
     # Replace repositories if provided
     if schedule_data.repositories is not None:
         # Delete existing repositories
-        db.query(ScheduleRepository).filter(
-            ScheduleRepository.schedule_id == schedule_id
-        ).delete()
+        db.query(ScheduleRepository).filter(ScheduleRepository.schedule_id == schedule_id).delete()
 
         # Create new repository associations
         for repo_ref in schedule_data.repositories:
@@ -238,9 +323,7 @@ async def update_schedule(
     db.commit()
     db.refresh(schedule)
 
-    return SingleScheduleResponse(
-        data=ScheduleData(schedule=_schedule_to_response(schedule))
-    )
+    return SingleScheduleResponse(data=ScheduleData(schedule=_schedule_to_response(schedule)))
 
 
 @router.delete("/{schedule_id}", status_code=status.HTTP_204_NO_CONTENT)

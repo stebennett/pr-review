@@ -1040,11 +1040,11 @@ class RepositoryRef(BaseModel):
 **Description:** Validate GitHub Personal Access Token when saving a schedule.
 
 **Deliverables:**
-- [ ] Add PAT validation method to GitHub service
-- [ ] Check PAT has required scopes (read:org, repo)
-- [ ] Test PAT can access specified repositories
-- [ ] Return meaningful error if validation fails
-- [ ] Write tests
+- [x] Add PAT validation method to GitHub service
+- [x] Check PAT has required scopes (read:org, repo)
+- [x] Test PAT can access specified repositories
+- [x] Return meaningful error if validation fails
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```

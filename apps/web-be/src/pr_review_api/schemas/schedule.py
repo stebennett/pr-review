@@ -5,6 +5,50 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+class InaccessibleRepository(BaseModel):
+    """Repository that could not be accessed with the provided PAT.
+
+    Attributes:
+        organization: GitHub organization name.
+        repository: GitHub repository name.
+        reason: Reason why the repository is inaccessible.
+    """
+
+    organization: str
+    repository: str
+    reason: str
+
+
+class PATValidationResult(BaseModel):
+    """Result of validating a GitHub Personal Access Token.
+
+    Attributes:
+        is_valid: Whether the PAT is valid.
+        scopes: List of scopes the PAT has.
+        missing_scopes: List of required scopes that are missing.
+        username: GitHub username associated with the PAT if valid.
+        error_message: Error message if validation failed.
+    """
+
+    is_valid: bool
+    scopes: list[str] = []
+    missing_scopes: list[str] = []
+    username: str | None = None
+    error_message: str | None = None
+
+
+class RepositoryAccessResult(BaseModel):
+    """Result of validating PAT access to repositories.
+
+    Attributes:
+        accessible: List of repositories that can be accessed.
+        inaccessible: List of repositories that cannot be accessed.
+    """
+
+    accessible: list["RepositoryRef"]
+    inaccessible: list[InaccessibleRepository]
+
+
 class RepositoryRef(BaseModel):
     """Reference to a GitHub repository.
 
