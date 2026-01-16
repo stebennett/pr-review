@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSettings } from "../hooks/useSettings";
+import { useSchedules } from "../hooks/useSchedules";
+import ScheduleForm from "../components/ScheduleForm";
+import type { Schedule, ScheduleCreate, ScheduleUpdate } from "../types";
 
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -21,8 +24,22 @@ export default function Settings() {
     resetUpdate,
   } = useSettings();
 
+  const {
+    schedules,
+    isLoading: schedulesLoading,
+    error: schedulesError,
+    createSchedule,
+    isCreating,
+    createError,
+    updateSchedule,
+    isUpdating: isUpdatingSchedule,
+    updateError: scheduleUpdateError,
+  } = useSchedules();
+
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [showScheduleForm, setShowScheduleForm] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
 
   useEffect(() => {
     if (settings?.email) {
@@ -58,6 +75,39 @@ export default function Settings() {
     }
     setEmailError(null);
     updateSettings({ email: email.trim() });
+  };
+
+  const handleOpenCreateForm = () => {
+    setEditingSchedule(null);
+    setShowScheduleForm(true);
+  };
+
+  const handleOpenEditForm = (schedule: Schedule) => {
+    setEditingSchedule(schedule);
+    setShowScheduleForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowScheduleForm(false);
+    setEditingSchedule(null);
+  };
+
+  const handleSaveSchedule = async (data: ScheduleCreate) => {
+    if (editingSchedule) {
+      const updateData: ScheduleUpdate = {
+        name: data.name,
+        cron_expression: data.cron_expression,
+        repositories: data.repositories,
+        is_active: data.is_active,
+      };
+      if (data.github_pat && data.github_pat !== "unchanged") {
+        updateData.github_pat = data.github_pat;
+      }
+      await updateSchedule(editingSchedule.id, updateData);
+    } else {
+      await createSchedule(data);
+    }
+    handleCloseForm();
   };
 
   return (
@@ -188,6 +238,7 @@ export default function Settings() {
                 </h2>
                 <button
                   type="button"
+                  onClick={handleOpenCreateForm}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
                 >
                   + Add Schedule
@@ -196,32 +247,120 @@ export default function Settings() {
               <p className="text-sm text-gray-600 mb-4">
                 Configure automated email notifications for pull request updates.
               </p>
-              <div className="border border-dashed border-gray-300 rounded-lg p-8 text-center">
-                <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-                <p className="mt-4 text-gray-500">
-                  No notification schedules configured yet.
-                </p>
-                <p className="mt-1 text-sm text-gray-400">
-                  Create a schedule to receive regular email updates about open pull
-                  requests.
-                </p>
-              </div>
+
+              {schedulesError && (
+                <div className="mb-4 bg-red-50 border-l-4 border-red-400 p-3">
+                  <p className="text-sm text-red-700">
+                    Failed to load schedules. Please try again.
+                  </p>
+                </div>
+              )}
+
+              {schedulesLoading ? (
+                <div className="text-center py-8">
+                  <svg
+                    className="animate-spin h-6 w-6 text-gray-600 mx-auto"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                </div>
+              ) : schedules.length === 0 ? (
+                <div className="border border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.5}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                  <p className="mt-4 text-gray-500">
+                    No notification schedules configured yet.
+                  </p>
+                  <p className="mt-1 text-sm text-gray-400">
+                    Create a schedule to receive regular email updates about open
+                    pull requests.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {schedules.map((schedule) => (
+                    <div
+                      key={schedule.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center space-x-2">
+                            <h3 className="text-sm font-medium text-gray-900 truncate">
+                              {schedule.name}
+                            </h3>
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                                schedule.is_active
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {schedule.is_active ? "Active" : "Inactive"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-gray-500">
+                            <code className="text-xs bg-gray-100 px-1 rounded">
+                              {schedule.cron_expression}
+                            </code>
+                          </p>
+                          <p className="mt-1 text-xs text-gray-400">
+                            {schedule.repositories.length} repositor
+                            {schedule.repositories.length === 1 ? "y" : "ies"}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditForm(schedule)}
+                          className="ml-4 text-sm text-blue-600 hover:text-blue-800"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </section>
           </div>
         )}
       </main>
+
+      {showScheduleForm && (
+        <ScheduleForm
+          schedule={editingSchedule ?? undefined}
+          onSave={handleSaveSchedule}
+          onClose={handleCloseForm}
+          isLoading={isCreating || isUpdatingSchedule}
+          error={createError || scheduleUpdateError}
+        />
+      )}
     </div>
   );
 }

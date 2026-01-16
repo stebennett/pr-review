@@ -1141,15 +1141,15 @@ apps/web-fe/src/
 **Description:** Create the form for creating and editing notification schedules.
 
 **Deliverables:**
-- [ ] Create ScheduleForm component (modal or separate page)
-- [ ] Add name input field
-- [ ] Add cron expression input with helper text
-- [ ] Add GitHub PAT input (masked)
-- [ ] Add repository selector (multi-select from available repos)
-- [ ] Add active toggle
-- [ ] Implement form validation
-- [ ] Implement save handler
-- [ ] Write component tests
+- [x] Create ScheduleForm component (modal or separate page)
+- [x] Add name input field
+- [x] Add cron expression input with helper text
+- [x] Add GitHub PAT input (masked)
+- [x] Add repository selector (multi-select from available repos)
+- [x] Add active toggle
+- [x] Implement form validation
+- [x] Implement save handler
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
