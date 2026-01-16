@@ -36,6 +36,12 @@ from pr_review_api.schemas.schedule import (
     ScheduleUpdate,
     SingleScheduleResponse,
 )
+from pr_review_api.schemas.settings import (
+    SettingsAPIResponse,
+    SettingsData,
+    SettingsResponse,
+    SettingsUpdate,
+)
 
 __all__ = [
     "Author",
@@ -65,6 +71,10 @@ __all__ = [
     "SchedulesData",
     "SchedulesResponse",
     "ScheduleUpdate",
+    "SettingsAPIResponse",
+    "SettingsData",
+    "SettingsResponse",
+    "SettingsUpdate",
     "SingleScheduleResponse",
     "TokenResponse",
     "UserResponse",
