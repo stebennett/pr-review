@@ -995,13 +995,13 @@ class ScheduleRepository(Base):
 **Description:** Create the API endpoints for managing notification schedules.
 
 **Deliverables:**
-- [ ] Implement `GET /api/schedules` - List user's schedules
-- [ ] Implement `POST /api/schedules` - Create new schedule
-- [ ] Implement `GET /api/schedules/{id}` - Get specific schedule
-- [ ] Implement `PUT /api/schedules/{id}` - Update schedule
-- [ ] Implement `DELETE /api/schedules/{id}` - Delete schedule
-- [ ] Create Pydantic schemas for request/response
-- [ ] Write endpoint tests
+- [x] Implement `GET /api/schedules` - List user's schedules
+- [x] Implement `POST /api/schedules` - Create new schedule
+- [x] Implement `GET /api/schedules/{id}` - Get specific schedule
+- [x] Implement `PUT /api/schedules/{id}` - Update schedule
+- [x] Implement `DELETE /api/schedules/{id}` - Delete schedule
+- [x] Create Pydantic schemas for request/response
+- [x] Write endpoint tests
 
 **Files to Create/Modify:**
 ```
