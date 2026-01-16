@@ -1072,10 +1072,10 @@ apps/web-be/src/pr_review_api/
 **Description:** Create endpoints for managing user settings (email address).
 
 **Deliverables:**
-- [ ] Implement `GET /api/settings` - Get user's email
-- [ ] Implement `PUT /api/settings` - Update user's email
-- [ ] Validate email format
-- [ ] Write tests
+- [x] Implement `GET /api/settings` - Get user's email
+- [x] Implement `PUT /api/settings` - Update user's email
+- [x] Validate email format
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from pr_review_api import __version__
 from pr_review_api.config import get_settings
-from pr_review_api.routers import auth, organizations, pulls, repositories, schedules
+from pr_review_api.routers import auth, organizations, pulls, repositories, schedules, settings
 
 
 @asynccontextmanager
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Shutdown
 
 
-settings = get_settings()
+app_settings = get_settings()
 
 app = FastAPI(
     title="PR-Review API",
@@ -38,7 +38,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=app_settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,3 +62,4 @@ app.include_router(pulls.router)
 app.include_router(pulls.refresh_router)
 app.include_router(repositories.router)
 app.include_router(schedules.router)
+app.include_router(settings.router)
