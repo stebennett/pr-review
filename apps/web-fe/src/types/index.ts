@@ -58,6 +58,34 @@ export interface Schedule {
   updated_at: string;
 }
 
+export interface ScheduleCreate {
+  name: string;
+  cron_expression: string;
+  github_pat: string;
+  repositories: RepositoryRef[];
+  is_active: boolean;
+}
+
+export interface ScheduleUpdate {
+  name?: string;
+  cron_expression?: string;
+  github_pat?: string;
+  repositories?: RepositoryRef[];
+  is_active?: boolean;
+}
+
+export interface PATOrganization {
+  id: string;
+  login: string;
+  avatar_url: string | null;
+}
+
+export interface PATRepository {
+  id: string;
+  name: string;
+  full_name: string;
+}
+
 export interface RateLimitInfo {
   remaining: number;
   reset_at: string;

@@ -14,6 +14,14 @@ from pr_review_api.dependencies import get_current_user
 from pr_review_api.models.schedule import NotificationSchedule, ScheduleRepository
 from pr_review_api.models.user import User
 from pr_review_api.schemas.schedule import (
+    PATOrganization,
+    PATOrganizationsData,
+    PATOrganizationsResponse,
+    PATPreviewRequest,
+    PATRepositoriesData,
+    PATRepositoriesRequest,
+    PATRepositoriesResponse,
+    PATRepository,
     RepositoryRef,
     ScheduleCreate,
     ScheduleData,
@@ -361,3 +369,117 @@ async def delete_schedule(
 
     db.delete(schedule)
     db.commit()
+
+
+@router.post("/pat/organizations", response_model=PATOrganizationsResponse)
+async def preview_pat_organizations(
+    request: PATPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATOrganizationsResponse:
+    """Preview organizations accessible with a GitHub PAT.
+
+    Validates the PAT and returns the list of organizations/accounts
+    that can be accessed with it.
+
+    Args:
+        request: Request containing the GitHub PAT.
+        current_user: Current authenticated user from JWT.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATOrganizationsResponse with list of accessible organizations.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid or missing required scopes.
+    """
+    # Validate PAT first
+    pat_result = await github_service.validate_pat(request.github_pat)
+
+    if not pat_result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_VALIDATION_FAILED",
+                "message": pat_result.error_message or "Invalid GitHub Personal Access Token",
+            },
+        )
+
+    if pat_result.missing_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_MISSING_SCOPES",
+                "message": "The provided GitHub PAT is missing required scopes",
+                "missing_scopes": pat_result.missing_scopes,
+                "required_scopes": list(github_service.REQUIRED_PAT_SCOPES),
+            },
+        )
+
+    # Fetch organizations accessible with this PAT
+    organizations, _ = await github_service.get_user_organizations(request.github_pat)
+
+    return PATOrganizationsResponse(
+        data=PATOrganizationsData(
+            organizations=[
+                PATOrganization(
+                    id=org.id,
+                    login=org.login,
+                    avatar_url=org.avatar_url,
+                )
+                for org in organizations
+            ],
+            username=pat_result.username or "",
+        )
+    )
+
+
+@router.post("/pat/repositories", response_model=PATRepositoriesResponse)
+async def preview_pat_repositories(
+    request: PATRepositoriesRequest,
+    current_user: User = Depends(get_current_user),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATRepositoriesResponse:
+    """Preview repositories accessible with a GitHub PAT for an organization.
+
+    Fetches the list of repositories in the specified organization
+    that can be accessed with the provided PAT.
+
+    Args:
+        request: Request containing the GitHub PAT and organization.
+        current_user: Current authenticated user from JWT.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATRepositoriesResponse with list of accessible repositories.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid.
+        HTTPException: 404 if organization not found.
+    """
+    # Fetch repositories for the organization
+    try:
+        repositories, _ = await github_service.get_organization_repositories(
+            request.github_pat, request.organization
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "FETCH_REPOSITORIES_FAILED",
+                "message": f"Failed to fetch repositories for organization '{request.organization}'",
+            },
+        )
+
+    return PATRepositoriesResponse(
+        data=PATRepositoriesData(
+            repositories=[
+                PATRepository(
+                    id=repo.id,
+                    name=repo.name,
+                    full_name=repo.full_name,
+                )
+                for repo in repositories
+            ]
+        )
+    )
