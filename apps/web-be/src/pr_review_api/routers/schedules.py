@@ -7,8 +7,6 @@ that define when and what PR notifications should be sent to users.
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
-
-logger = logging.getLogger(__name__)
 from pr_review_shared import decrypt_token, encrypt_token
 from sqlalchemy.orm import Session
 
@@ -36,6 +34,8 @@ from pr_review_api.schemas.schedule import (
     SingleScheduleResponse,
 )
 from pr_review_api.services.github import GitHubAPIService, get_github_api_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
