@@ -463,11 +463,12 @@ async def preview_pat_repositories(
             request.github_pat, request.organization
         )
     except Exception:
+        org = request.organization
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "code": "FETCH_REPOSITORIES_FAILED",
-                "message": f"Failed to fetch repositories for organization '{request.organization}'",
+                "message": f"Failed to fetch repositories for organization '{org}'",
             },
         )
 
