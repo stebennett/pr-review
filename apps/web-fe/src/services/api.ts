@@ -194,4 +194,27 @@ export async function previewPATRepositories(
   return response.data.repositories;
 }
 
+// Schedule PAT API - uses the schedule's stored PAT
+export async function getScheduleOrganizations(
+  scheduleId: string
+): Promise<{ organizations: PATOrganization[]; username: string }> {
+  const response = await api.get<ApiResponse<PATOrganizationsData>>(
+    `/api/schedules/${scheduleId}/organizations`
+  );
+  return {
+    organizations: response.data.organizations,
+    username: response.data.username,
+  };
+}
+
+export async function getScheduleRepositories(
+  scheduleId: string,
+  organization: string
+): Promise<PATRepository[]> {
+  const response = await api.get<ApiResponse<PATRepositoriesData>>(
+    `/api/schedules/${scheduleId}/repositories?organization=${encodeURIComponent(organization)}`
+  );
+  return response.data.repositories;
+}
+
 export { ApiError };

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import {
   previewPATOrganizations,
   previewPATRepositories,
+  getScheduleOrganizations,
+  getScheduleRepositories,
 } from "../services/api";
 import type {
   Schedule,
@@ -71,11 +73,22 @@ export default function ScheduleForm({
 
   const loadRepositories = useCallback(
     async (org: string) => {
-      if (!githubPat) return;
       setIsLoadingRepos(true);
       setRepoError(null);
       try {
-        const repos = await previewPATRepositories(githubPat, org);
+        let repos: PATRepository[];
+        if (githubPat) {
+          // Use the new PAT provided in the form
+          repos = await previewPATRepositories(githubPat, org);
+        } else if (schedule?.id) {
+          // Use the schedule's stored PAT
+          repos = await getScheduleRepositories(schedule.id, org);
+        } else {
+          // No PAT available
+          setRepoError("No PAT available to fetch repositories");
+          setRepositories([]);
+          return;
+        }
         setRepositories(repos);
       } catch (err) {
         setRepoError(
@@ -86,15 +99,15 @@ export default function ScheduleForm({
         setIsLoadingRepos(false);
       }
     },
-    [githubPat]
+    [githubPat, schedule?.id]
   );
 
   // Load repos when organization changes in step 3
   useEffect(() => {
-    if (step === 3 && selectedOrg && githubPat) {
+    if (step === 3 && selectedOrg && (githubPat || schedule?.id)) {
       loadRepositories(selectedOrg);
     }
-  }, [selectedOrg, step, githubPat, loadRepositories]);
+  }, [selectedOrg, step, githubPat, schedule?.id, loadRepositories]);
 
   // Pre-select org if editing
   useEffect(() => {
@@ -124,18 +137,11 @@ export default function ScheduleForm({
     return Object.keys(newErrors).length === 0;
   };
 
-  // Check if we're editing without a new PAT (can skip step 3)
-  const isEditingWithoutNewPat = !!schedule && !githubPat.trim();
-
   const validateStep2 = async (): Promise<boolean> => {
+    // For new schedules, PAT is required
     if (!schedule && !githubPat.trim()) {
       setErrors({ githubPat: "GitHub Personal Access Token is required" });
       return false;
-    }
-
-    // If editing and no new PAT provided, skip validation
-    if (schedule && !githubPat.trim()) {
-      return true;
     }
 
     setIsValidatingPat(true);
@@ -143,7 +149,19 @@ export default function ScheduleForm({
     setErrors({});
 
     try {
-      const result = await previewPATOrganizations(githubPat);
+      let result: { organizations: PATOrganization[]; username: string };
+
+      if (githubPat.trim()) {
+        // Validate and use the new PAT
+        result = await previewPATOrganizations(githubPat);
+      } else if (schedule?.id) {
+        // Use the schedule's stored PAT
+        result = await getScheduleOrganizations(schedule.id);
+      } else {
+        setPatError("No PAT available");
+        return false;
+      }
+
       setOrganizations(result.organizations);
       setPatUsername(result.username);
       return true;
@@ -174,36 +192,8 @@ export default function ScheduleForm({
     } else if (step === 2) {
       const isValid = await validateStep2();
       if (isValid) {
-        // If editing without new PAT, skip to submission (keep existing repos)
-        if (isEditingWithoutNewPat) {
-          await handleSubmitFromStep2();
-        } else {
-          setStep(3);
-        }
+        setStep(3);
       }
-    }
-  };
-
-  const handleSubmitFromStep2 = async () => {
-    setSubmitError(null);
-
-    const data: ScheduleCreate = {
-      name: name.trim(),
-      cron_expression: cronExpression.trim(),
-      github_pat: "unchanged",
-      repositories: selectedRepos,
-      is_active: isActive,
-    };
-
-    // Remove github_pat since we're not changing it
-    delete (data as Partial<ScheduleCreate>).github_pat;
-
-    try {
-      await onSave(data);
-    } catch (err) {
-      setSubmitError(
-        err instanceof Error ? err.message : "Failed to save schedule"
-      );
     }
   };
 
@@ -523,8 +513,8 @@ export default function ScheduleForm({
       {schedule && !githubPat.trim() && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
           <p className="text-sm text-blue-800">
-            Leaving PAT blank will keep the existing token and repositories unchanged.
-            Enter a new PAT to update repositories.
+            Leave blank to use the existing stored token for repository selection.
+            Enter a new PAT to replace it.
           </p>
         </div>
       )}
@@ -714,15 +704,9 @@ export default function ScheduleForm({
                     type="button"
                     onClick={handleNext}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isValidatingPat || (step === 2 && isEditingWithoutNewPat && isLoading)}
+                    disabled={isValidatingPat}
                   >
-                    {isValidatingPat
-                      ? "Validating..."
-                      : step === 2 && isEditingWithoutNewPat
-                        ? isLoading
-                          ? "Saving..."
-                          : "Save Changes"
-                        : "Next"}
+                    {isValidatingPat ? "Validating..." : "Next"}
                   </button>
                 ) : (
                   <button

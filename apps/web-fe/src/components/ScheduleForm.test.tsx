@@ -13,6 +13,8 @@ vi.mock("../services/api", async () => {
     ...actual,
     previewPATOrganizations: vi.fn(),
     previewPATRepositories: vi.fn(),
+    getScheduleOrganizations: vi.fn(),
+    getScheduleRepositories: vi.fn(),
   };
 });
 
@@ -430,38 +432,38 @@ describe("ScheduleForm", () => {
       expect(screen.getByText(/leave blank to keep current/)).toBeInTheDocument();
     });
 
-    it("allows skipping PAT entry when editing and saves directly", async () => {
+    it("uses stored PAT when editing without entering new PAT", async () => {
       const user = userEvent.setup();
-      mockOnSave.mockResolvedValue(undefined);
+      vi.mocked(api.getScheduleOrganizations).mockResolvedValue({
+        organizations: mockOrganizations,
+        username: "testuser",
+      });
+      vi.mocked(api.getScheduleRepositories).mockResolvedValue(mockRepositories);
       renderForm({ schedule: mockSchedule });
 
       // Go to step 2
       await user.click(screen.getByRole("button", { name: "Next" }));
 
-      // Without entering PAT, button should say "Save Changes"
+      // Shows info about using existing PAT
       expect(
-        screen.getByRole("button", { name: "Save Changes" })
+        screen.getByText(/Leave blank to use the existing stored token/)
       ).toBeInTheDocument();
 
-      // Shows info about keeping existing PAT
-      expect(
-        screen.getByText(/Leaving PAT blank will keep the existing token/)
-      ).toBeInTheDocument();
+      // Clicking Next should fetch orgs using stored PAT and go to step 3
+      await user.click(screen.getByRole("button", { name: "Next" }));
 
-      // Clicking Save Changes should save without going to step 3
-      await user.click(screen.getByRole("button", { name: "Save Changes" }));
-
+      // Should call getScheduleOrganizations with schedule ID (not previewPATOrganizations)
       await waitFor(() => {
-        expect(mockOnSave).toHaveBeenCalledWith({
-          name: "Daily PR Check",
-          cron_expression: "0 9 * * 1-5",
-          repositories: [{ organization: "test-org", repository: "repo-one" }],
-          is_active: true,
-        });
+        expect(api.getScheduleOrganizations).toHaveBeenCalledWith("schedule-1");
       });
-
-      // PAT validation should not have been called
       expect(api.previewPATOrganizations).not.toHaveBeenCalled();
+
+      // Should be on step 3
+      await waitFor(() => {
+        expect(
+          screen.getByText("Select repositories to monitor")
+        ).toBeInTheDocument();
+      });
     });
 
     it("shows Save Changes button on step 3", async () => {
