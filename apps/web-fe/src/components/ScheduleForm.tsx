@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   previewPATOrganizations,
   previewPATRepositories,
@@ -69,12 +69,32 @@ export default function ScheduleForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  const loadRepositories = useCallback(
+    async (org: string) => {
+      if (!githubPat) return;
+      setIsLoadingRepos(true);
+      setRepoError(null);
+      try {
+        const repos = await previewPATRepositories(githubPat, org);
+        setRepositories(repos);
+      } catch (err) {
+        setRepoError(
+          err instanceof Error ? err.message : "Failed to load repositories"
+        );
+        setRepositories([]);
+      } finally {
+        setIsLoadingRepos(false);
+      }
+    },
+    [githubPat]
+  );
+
   // Load repos when organization changes in step 3
   useEffect(() => {
     if (step === 3 && selectedOrg && githubPat) {
       loadRepositories(selectedOrg);
     }
-  }, [selectedOrg, step]);
+  }, [selectedOrg, step, githubPat, loadRepositories]);
 
   // Pre-select org if editing
   useEffect(() => {
@@ -85,22 +105,6 @@ export default function ScheduleForm({
       }
     }
   }, [schedule?.repositories, organizations]);
-
-  const loadRepositories = async (org: string) => {
-    setIsLoadingRepos(true);
-    setRepoError(null);
-    try {
-      const repos = await previewPATRepositories(githubPat, org);
-      setRepositories(repos);
-    } catch (err) {
-      setRepoError(
-        err instanceof Error ? err.message : "Failed to load repositories"
-      );
-      setRepositories([]);
-    } finally {
-      setIsLoadingRepos(false);
-    }
-  };
 
   const validateStep1 = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -119,6 +123,9 @@ export default function ScheduleForm({
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
+
+  // Check if we're editing without a new PAT (can skip step 3)
+  const isEditingWithoutNewPat = !!schedule && !githubPat.trim();
 
   const validateStep2 = async (): Promise<boolean> => {
     if (!schedule && !githubPat.trim()) {
@@ -167,8 +174,36 @@ export default function ScheduleForm({
     } else if (step === 2) {
       const isValid = await validateStep2();
       if (isValid) {
-        setStep(3);
+        // If editing without new PAT, skip to submission (keep existing repos)
+        if (isEditingWithoutNewPat) {
+          await handleSubmitFromStep2();
+        } else {
+          setStep(3);
+        }
       }
+    }
+  };
+
+  const handleSubmitFromStep2 = async () => {
+    setSubmitError(null);
+
+    const data: ScheduleCreate = {
+      name: name.trim(),
+      cron_expression: cronExpression.trim(),
+      github_pat: "unchanged",
+      repositories: selectedRepos,
+      is_active: isActive,
+    };
+
+    // Remove github_pat since we're not changing it
+    delete (data as Partial<ScheduleCreate>).github_pat;
+
+    try {
+      await onSave(data);
+    } catch (err) {
+      setSubmitError(
+        err instanceof Error ? err.message : "Failed to save schedule"
+      );
     }
   };
 
@@ -484,6 +519,15 @@ export default function ScheduleForm({
           </p>
         </div>
       )}
+
+      {schedule && !githubPat.trim() && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+          <p className="text-sm text-blue-800">
+            Leaving PAT blank will keep the existing token and repositories unchanged.
+            Enter a new PAT to update repositories.
+          </p>
+        </div>
+      )}
     </div>
   );
 
@@ -670,9 +714,15 @@ export default function ScheduleForm({
                     type="button"
                     onClick={handleNext}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={isValidatingPat}
+                    disabled={isValidatingPat || (step === 2 && isEditingWithoutNewPat && isLoading)}
                   >
-                    {isValidatingPat ? "Validating..." : "Next"}
+                    {isValidatingPat
+                      ? "Validating..."
+                      : step === 2 && isEditingWithoutNewPat
+                        ? isLoading
+                          ? "Saving..."
+                          : "Save Changes"
+                        : "Next"}
                   </button>
                 ) : (
                   <button

@@ -430,21 +430,34 @@ describe("ScheduleForm", () => {
       expect(screen.getByText(/leave blank to keep current/)).toBeInTheDocument();
     });
 
-    it("allows skipping PAT entry when editing", async () => {
+    it("allows skipping PAT entry when editing and saves directly", async () => {
       const user = userEvent.setup();
+      mockOnSave.mockResolvedValue(undefined);
       renderForm({ schedule: mockSchedule });
 
       // Go to step 2
       await user.click(screen.getByRole("button", { name: "Next" }));
 
-      // Try to go to step 3 without entering PAT
-      await user.click(screen.getByRole("button", { name: "Next" }));
+      // Without entering PAT, button should say "Save Changes"
+      expect(
+        screen.getByRole("button", { name: "Save Changes" })
+      ).toBeInTheDocument();
 
-      // Should move to step 3 without PAT validation
+      // Shows info about keeping existing PAT
+      expect(
+        screen.getByText(/Leaving PAT blank will keep the existing token/)
+      ).toBeInTheDocument();
+
+      // Clicking Save Changes should save without going to step 3
+      await user.click(screen.getByRole("button", { name: "Save Changes" }));
+
       await waitFor(() => {
-        expect(
-          screen.getByText("Select repositories to monitor")
-        ).toBeInTheDocument();
+        expect(mockOnSave).toHaveBeenCalledWith({
+          name: "Daily PR Check",
+          cron_expression: "0 9 * * 1-5",
+          repositories: [{ organization: "test-org", repository: "repo-one" }],
+          is_active: true,
+        });
       });
 
       // PAT validation should not have been called
