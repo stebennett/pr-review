@@ -4,7 +4,11 @@ This module provides CRUD endpoints for managing notification schedules
 that define when and what PR notifications should be sent to users.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
+
+logger = logging.getLogger(__name__)
 from pr_review_shared import decrypt_token, encrypt_token
 from sqlalchemy.orm import Session
 
@@ -416,6 +420,7 @@ async def get_schedule_organizations(
     try:
         pat = decrypt_token(schedule.github_pat, settings.encryption_key)
     except Exception:
+        logger.exception("Failed to decrypt PAT for schedule %s", schedule_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -501,6 +506,7 @@ async def get_schedule_repositories(
     try:
         pat = decrypt_token(schedule.github_pat, settings.encryption_key)
     except Exception:
+        logger.exception("Failed to decrypt PAT for schedule %s", schedule_id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -515,6 +521,11 @@ async def get_schedule_repositories(
             pat, organization
         )
     except Exception:
+        logger.exception(
+            "Failed to fetch repositories for org %s (schedule %s)",
+            organization,
+            schedule_id,
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -630,6 +641,7 @@ async def preview_pat_repositories(
         )
     except Exception:
         org = request.organization
+        logger.exception("Failed to fetch repositories for org %s via PAT preview", org)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={

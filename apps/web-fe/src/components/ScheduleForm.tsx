@@ -30,7 +30,99 @@ const CRON_EXAMPLES = [
 
 function isValidCronExpression(cron: string): boolean {
   const parts = cron.trim().split(/\s+/);
-  return parts.length === 5;
+  if (parts.length !== 5) {
+    return false;
+  }
+
+  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts;
+
+  const validateField = (field: string, min: number, max: number): boolean => {
+    if (field === "*") {
+      return true;
+    }
+
+    const listParts = field.split(",");
+    if (listParts.length === 0) {
+      return false;
+    }
+
+    const isIntegerInRange = (value: string, lower: number, upper: number): boolean => {
+      if (!/^\d+$/.test(value)) {
+        return false;
+      }
+      const num = parseInt(value, 10);
+      return num >= lower && num <= upper;
+    };
+
+    const validateListItem = (item: string): boolean => {
+      if (!item) {
+        return false;
+      }
+
+      const stepParts = item.split("/");
+      if (stepParts.length > 2 || stepParts.length === 0) {
+        return false;
+      }
+
+      const [rangePart, stepPart] = stepParts;
+
+      if (stepPart !== undefined) {
+        if (!/^\d+$/.test(stepPart)) {
+          return false;
+        }
+        const stepNum = parseInt(stepPart, 10);
+        if (stepNum <= 0) {
+          return false;
+        }
+      }
+
+      if (rangePart === "*") {
+        return true;
+      }
+
+      const rangeBounds = rangePart.split("-");
+      if (rangeBounds.length === 1) {
+        return isIntegerInRange(rangeBounds[0], min, max);
+      }
+
+      if (rangeBounds.length === 2) {
+        const [startStr, endStr] = rangeBounds;
+        if (!isIntegerInRange(startStr, min, max) || !isIntegerInRange(endStr, min, max)) {
+          return false;
+        }
+        const start = parseInt(startStr, 10);
+        const end = parseInt(endStr, 10);
+        return start <= end;
+      }
+
+      return false;
+    };
+
+    return listParts.every((item) => validateListItem(item));
+  };
+
+  // minutes: 0-59
+  if (!validateField(minute, 0, 59)) {
+    return false;
+  }
+  // hours: 0-23
+  if (!validateField(hour, 0, 23)) {
+    return false;
+  }
+  // day of month: 1-31
+  if (!validateField(dayOfMonth, 1, 31)) {
+    return false;
+  }
+  // month: 1-12
+  if (!validateField(month, 1, 12)) {
+    return false;
+  }
+  // day of week: 0-7
+  if (!validateField(dayOfWeek, 0, 7)) {
+    return false;
+  }
+
+  return true;
 }
 
 type Step = 1 | 2 | 3;
@@ -109,15 +201,23 @@ export default function ScheduleForm({
     }
   }, [selectedOrg, step, githubPat, schedule?.id, loadRepositories]);
 
-  // Pre-select org if editing
+  // Pre-select org if editing (only on initial load when orgs become available)
   useEffect(() => {
+    // Don't override an already selected organization (e.g., user choice)
+    if (selectedOrg) {
+      return;
+    }
+
     if (schedule?.repositories && schedule.repositories.length > 0 && organizations.length > 0) {
       const firstOrg = schedule.repositories[0].organization;
       if (organizations.some((o) => o.login === firstOrg)) {
         setSelectedOrg(firstOrg);
       }
     }
-  }, [schedule?.repositories, organizations]);
+    // Using schedule?.id instead of schedule?.repositories to avoid re-runs
+    // when the schedule object reference changes but content is the same
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule?.id, organizations.length]);
 
   const validateStep1 = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -216,12 +316,13 @@ export default function ScheduleForm({
     const data: ScheduleCreate = {
       name: name.trim(),
       cron_expression: cronExpression.trim(),
-      github_pat: githubPat.trim() || "unchanged",
+      github_pat: githubPat.trim(),
       repositories: selectedRepos,
       is_active: isActive,
     };
 
     // If editing and no new PAT provided, remove it from payload
+    // For new schedules, validateStep2 ensures PAT is always provided
     if (schedule && !githubPat.trim()) {
       delete (data as Partial<ScheduleCreate>).github_pat;
     }
@@ -389,17 +490,18 @@ export default function ScheduleForm({
       </div>
 
       <div className="flex items-center justify-between">
-        <label
-          htmlFor="isActive"
+        <span
+          id="isActiveLabel"
           className="text-sm font-medium text-gray-700"
         >
           Active
-        </label>
+        </span>
         <button
           type="button"
           id="isActive"
           role="switch"
           aria-checked={isActive}
+          aria-labelledby="isActiveLabel"
           onClick={() => setIsActive(!isActive)}
           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
             isActive ? "bg-blue-600" : "bg-gray-200"
@@ -524,14 +626,22 @@ export default function ScheduleForm({
   const renderStep3 = () => (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label
+          htmlFor="organization"
+          className="block text-sm font-medium text-gray-700 mb-1"
+        >
           Organization
         </label>
         <select
+          id="organization"
           value={selectedOrg ?? ""}
           onChange={(e) => {
             setSelectedOrg(e.target.value || null);
             setRepositories([]);
+            // Clear selected repos from other organizations
+            setSelectedRepos((prev) =>
+              prev.filter((r) => r.organization === e.target.value)
+            );
           }}
           className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           disabled={isLoadingRepos}
@@ -546,11 +656,13 @@ export default function ScheduleForm({
       </div>
 
       {selectedOrg && (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+        <fieldset>
+          <legend className="block text-sm font-medium text-gray-700 mb-1">
             Repositories
-          </label>
+          </legend>
           <div
+            role="group"
+            aria-label="Repository selection"
             className={`border rounded-md max-h-48 overflow-y-auto ${
               errors.repositories ? "border-red-300" : "border-gray-300"
             }`}
@@ -582,7 +694,7 @@ export default function ScheduleForm({
               ))
             )}
           </div>
-        </div>
+        </fieldset>
       )}
 
       {errors.repositories && (
