@@ -4,8 +4,10 @@ This module provides CRUD endpoints for managing notification schedules
 that define when and what PR notifications should be sent to users.
 """
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
-from pr_review_shared import encrypt_token
+from pr_review_shared import decrypt_token, encrypt_token
 from sqlalchemy.orm import Session
 
 from pr_review_api.config import Settings, get_settings
@@ -14,6 +16,14 @@ from pr_review_api.dependencies import get_current_user
 from pr_review_api.models.schedule import NotificationSchedule, ScheduleRepository
 from pr_review_api.models.user import User
 from pr_review_api.schemas.schedule import (
+    PATOrganization,
+    PATOrganizationsData,
+    PATOrganizationsResponse,
+    PATPreviewRequest,
+    PATRepositoriesData,
+    PATRepositoriesRequest,
+    PATRepositoriesResponse,
+    PATRepository,
     RepositoryRef,
     ScheduleCreate,
     ScheduleData,
@@ -24,6 +34,8 @@ from pr_review_api.schemas.schedule import (
     SingleScheduleResponse,
 )
 from pr_review_api.services.github import GitHubAPIService, get_github_api_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"])
 
@@ -361,3 +373,292 @@ async def delete_schedule(
 
     db.delete(schedule)
     db.commit()
+
+
+@router.get("/{schedule_id}/organizations", response_model=PATOrganizationsResponse)
+async def get_schedule_organizations(
+    schedule_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATOrganizationsResponse:
+    """Get organizations accessible with a schedule's stored PAT.
+
+    Uses the encrypted PAT stored with the schedule to fetch organizations.
+
+    Args:
+        schedule_id: The schedule ID.
+        current_user: Current authenticated user from JWT.
+        db: Database session.
+        settings: Application settings for decryption key.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATOrganizationsResponse with list of accessible organizations.
+
+    Raises:
+        HTTPException: 404 if schedule not found.
+        HTTPException: 400 if stored PAT is invalid.
+    """
+    schedule = (
+        db.query(NotificationSchedule)
+        .filter(
+            NotificationSchedule.id == schedule_id,
+            NotificationSchedule.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schedule not found",
+        )
+
+    # Decrypt the stored PAT
+    try:
+        pat = decrypt_token(schedule.github_pat, settings.encryption_key)
+    except Exception:
+        logger.exception("Failed to decrypt PAT for schedule %s", schedule_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_DECRYPTION_FAILED",
+                "message": "Failed to decrypt stored PAT",
+            },
+        )
+
+    # Validate the PAT is still valid
+    pat_result = await github_service.validate_pat(pat)
+
+    if not pat_result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_VALIDATION_FAILED",
+                "message": pat_result.error_message or "Stored PAT is no longer valid",
+            },
+        )
+
+    # Fetch organizations
+    organizations, _ = await github_service.get_user_organizations(pat)
+
+    return PATOrganizationsResponse(
+        data=PATOrganizationsData(
+            organizations=[
+                PATOrganization(
+                    id=org.id,
+                    login=org.login,
+                    avatar_url=org.avatar_url,
+                )
+                for org in organizations
+            ],
+            username=pat_result.username or "",
+        )
+    )
+
+
+@router.get("/{schedule_id}/repositories", response_model=PATRepositoriesResponse)
+async def get_schedule_repositories(
+    schedule_id: str,
+    organization: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATRepositoriesResponse:
+    """Get repositories for an organization using a schedule's stored PAT.
+
+    Uses the encrypted PAT stored with the schedule to fetch repositories.
+
+    Args:
+        schedule_id: The schedule ID.
+        organization: The organization to fetch repositories for.
+        current_user: Current authenticated user from JWT.
+        db: Database session.
+        settings: Application settings for decryption key.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATRepositoriesResponse with list of accessible repositories.
+
+    Raises:
+        HTTPException: 404 if schedule not found.
+        HTTPException: 400 if stored PAT is invalid or can't fetch repos.
+    """
+    schedule = (
+        db.query(NotificationSchedule)
+        .filter(
+            NotificationSchedule.id == schedule_id,
+            NotificationSchedule.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if schedule is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Schedule not found",
+        )
+
+    # Decrypt the stored PAT
+    try:
+        pat = decrypt_token(schedule.github_pat, settings.encryption_key)
+    except Exception:
+        logger.exception("Failed to decrypt PAT for schedule %s", schedule_id)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_DECRYPTION_FAILED",
+                "message": "Failed to decrypt stored PAT",
+            },
+        )
+
+    # Fetch repositories
+    try:
+        repositories, _ = await github_service.get_organization_repositories(
+            pat, organization
+        )
+    except Exception:
+        logger.exception(
+            "Failed to fetch repositories for org %s (schedule %s)",
+            organization,
+            schedule_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "FETCH_REPOSITORIES_FAILED",
+                "message": f"Failed to fetch repositories for organization '{organization}'",
+            },
+        )
+
+    return PATRepositoriesResponse(
+        data=PATRepositoriesData(
+            repositories=[
+                PATRepository(
+                    id=repo.id,
+                    name=repo.name,
+                    full_name=repo.full_name,
+                )
+                for repo in repositories
+            ]
+        )
+    )
+
+
+@router.post("/pat/organizations", response_model=PATOrganizationsResponse)
+async def preview_pat_organizations(
+    request: PATPreviewRequest,
+    current_user: User = Depends(get_current_user),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATOrganizationsResponse:
+    """Preview organizations accessible with a GitHub PAT.
+
+    Validates the PAT and returns the list of organizations/accounts
+    that can be accessed with it.
+
+    Args:
+        request: Request containing the GitHub PAT.
+        current_user: Current authenticated user from JWT.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATOrganizationsResponse with list of accessible organizations.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid or missing required scopes.
+    """
+    # Validate PAT first
+    pat_result = await github_service.validate_pat(request.github_pat)
+
+    if not pat_result.is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_VALIDATION_FAILED",
+                "message": pat_result.error_message or "Invalid GitHub Personal Access Token",
+            },
+        )
+
+    if pat_result.missing_scopes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "PAT_MISSING_SCOPES",
+                "message": "The provided GitHub PAT is missing required scopes",
+                "missing_scopes": pat_result.missing_scopes,
+                "required_scopes": list(github_service.REQUIRED_PAT_SCOPES),
+            },
+        )
+
+    # Fetch organizations accessible with this PAT
+    organizations, _ = await github_service.get_user_organizations(request.github_pat)
+
+    return PATOrganizationsResponse(
+        data=PATOrganizationsData(
+            organizations=[
+                PATOrganization(
+                    id=org.id,
+                    login=org.login,
+                    avatar_url=org.avatar_url,
+                )
+                for org in organizations
+            ],
+            username=pat_result.username or "",
+        )
+    )
+
+
+@router.post("/pat/repositories", response_model=PATRepositoriesResponse)
+async def preview_pat_repositories(
+    request: PATRepositoriesRequest,
+    current_user: User = Depends(get_current_user),
+    github_service: GitHubAPIService = Depends(get_github_api_service),
+) -> PATRepositoriesResponse:
+    """Preview repositories accessible with a GitHub PAT for an organization.
+
+    Fetches the list of repositories in the specified organization
+    that can be accessed with the provided PAT.
+
+    Args:
+        request: Request containing the GitHub PAT and organization.
+        current_user: Current authenticated user from JWT.
+        github_service: GitHub API service instance.
+
+    Returns:
+        PATRepositoriesResponse with list of accessible repositories.
+
+    Raises:
+        HTTPException: 400 if PAT is invalid.
+        HTTPException: 404 if organization not found.
+    """
+    # Fetch repositories for the organization
+    try:
+        repositories, _ = await github_service.get_organization_repositories(
+            request.github_pat, request.organization
+        )
+    except Exception:
+        org = request.organization
+        logger.exception("Failed to fetch repositories for org %s via PAT preview", org)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "code": "FETCH_REPOSITORIES_FAILED",
+                "message": f"Failed to fetch repositories for organization '{org}'",
+            },
+        )
+
+    return PATRepositoriesResponse(
+        data=PATRepositoriesData(
+            repositories=[
+                PATRepository(
+                    id=repo.id,
+                    name=repo.name,
+                    full_name=repo.full_name,
+                )
+                for repo in repositories
+            ]
+        )
+    )
