@@ -1181,12 +1181,12 @@ apps/web-fe/src/
 **Description:** Create the component that displays list of notification schedules with actions.
 
 **Deliverables:**
-- [ ] Create ScheduleList component
-- [ ] Display schedule name, cron expression (human readable), status
-- [ ] Add edit button for each schedule
-- [ ] Add delete button with confirmation
-- [ ] Add toggle for active/inactive
-- [ ] Write component tests
+- [x] Create ScheduleList component
+- [x] Display schedule name, cron expression (human readable), status
+- [x] Add edit button for each schedule
+- [x] Add delete button with confirmation
+- [x] Add toggle for active/inactive
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```

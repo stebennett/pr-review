@@ -4,6 +4,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSettings } from "../hooks/useSettings";
 import { useSchedules } from "../hooks/useSchedules";
 import ScheduleForm from "../components/ScheduleForm";
+import ScheduleList from "../components/ScheduleList";
 import type { Schedule, ScheduleCreate, ScheduleUpdate } from "../types";
 
 function isValidEmail(email: string): boolean {
@@ -34,6 +35,8 @@ export default function Settings() {
     updateSchedule,
     isUpdating: isUpdatingSchedule,
     updateError: scheduleUpdateError,
+    deleteSchedule,
+    isDeleting,
   } = useSchedules();
 
   const [email, setEmail] = useState("");
@@ -108,6 +111,14 @@ export default function Settings() {
       await createSchedule(data);
     }
     handleCloseForm();
+  };
+
+  const handleDeleteSchedule = async (schedule: Schedule) => {
+    await deleteSchedule(schedule.id);
+  };
+
+  const handleToggleActive = async (schedule: Schedule, isActive: boolean) => {
+    await updateSchedule(schedule.id, { is_active: isActive });
   };
 
   return (
@@ -303,49 +314,14 @@ export default function Settings() {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {schedules.map((schedule) => (
-                    <div
-                      key={schedule.id}
-                      className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center space-x-2">
-                            <h3 className="text-sm font-medium text-gray-900 truncate">
-                              {schedule.name}
-                            </h3>
-                            <span
-                              className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                                schedule.is_active
-                                  ? "bg-green-100 text-green-800"
-                                  : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {schedule.is_active ? "Active" : "Inactive"}
-                            </span>
-                          </div>
-                          <p className="mt-1 text-sm text-gray-500">
-                            <code className="text-xs bg-gray-100 px-1 rounded">
-                              {schedule.cron_expression}
-                            </code>
-                          </p>
-                          <p className="mt-1 text-xs text-gray-400">
-                            {schedule.repositories.length} repositor
-                            {schedule.repositories.length === 1 ? "y" : "ies"}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditForm(schedule)}
-                          className="ml-4 text-sm text-blue-600 hover:text-blue-800"
-                        >
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <ScheduleList
+                  schedules={schedules}
+                  onEdit={handleOpenEditForm}
+                  onDelete={handleDeleteSchedule}
+                  onToggleActive={handleToggleActive}
+                  isDeleting={isDeleting}
+                  isToggling={isUpdatingSchedule}
+                />
               )}
             </section>
           </div>
