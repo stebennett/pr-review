@@ -11,6 +11,7 @@ from apscheduler.triggers.date import DateTrigger
 
 from pr_review_scheduler.config import get_settings
 from pr_review_scheduler.scheduler import (
+    JobNotFoundError,
     add_cron_job,
     create_scheduler,
     get_all_jobs,
@@ -402,18 +403,19 @@ class TestUpdateJob:
         finally:
             scheduler.shutdown(wait=False)
 
-    def test_update_job_returns_false_for_nonexistent(self, mock_settings):
-        """Test that update_job returns False for non-existent job."""
+    def test_update_job_raises_for_nonexistent(self, mock_settings):
+        """Test that update_job raises JobNotFoundError for non-existent job."""
         scheduler = create_scheduler()
         start_scheduler(scheduler)
         try:
-            result = update_job(scheduler, "nonexistent-job", cron_expression="0 10 * * *")
-            assert result is False
+            with pytest.raises(JobNotFoundError) as exc_info:
+                update_job(scheduler, "nonexistent-job", cron_expression="0 10 * * *")
+            assert exc_info.value.job_id == "nonexistent-job"
         finally:
             scheduler.shutdown(wait=False)
 
     def test_update_job_with_no_changes(self, mock_settings):
-        """Test that update_job returns True even with no cron change."""
+        """Test that update_job returns False when no update parameters provided."""
         scheduler = create_scheduler()
         start_scheduler(scheduler)
         try:
@@ -428,9 +430,9 @@ class TestUpdateJob:
                 cron_expression="0 9 * * *",
             )
 
-            # Update with no cron expression - should still return True
+            # Update with no cron expression - should return False (no changes made)
             result = update_job(scheduler, "test-job")
-            assert result is True
+            assert result is False
         finally:
             scheduler.shutdown(wait=False)
 
@@ -450,8 +452,8 @@ class TestJobExecution:
                 results.append(schedule_id)
                 event.set()
 
-            # Use date trigger for immediate execution
-            run_time = datetime.now() + timedelta(milliseconds=100)
+            # Use date trigger for immediate execution, aligned with scheduler timezone
+            run_time = datetime.now(tz=scheduler.timezone) + timedelta(milliseconds=100)
             scheduler.add_job(
                 test_job,
                 trigger=DateTrigger(run_date=run_time),

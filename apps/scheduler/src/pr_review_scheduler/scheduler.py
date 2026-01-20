@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+class JobNotFoundError(Exception):
+    """Raised when a job is not found in the scheduler."""
+
+    def __init__(self, job_id: str):
+        self.job_id = job_id
+        super().__init__(f"Job not found: {job_id}")
+
+
 def create_scheduler() -> BackgroundScheduler:
     """Create and configure the APScheduler instance.
 
@@ -181,17 +189,23 @@ def update_job(
         cron_expression: New cron expression (if provided).
 
     Returns:
-        True if the job was updated, False if it didn't exist.
+        True if the job was updated, False if no update parameters were provided.
+
+    Raises:
+        JobNotFoundError: If the job with the given ID does not exist.
     """
     job = scheduler.get_job(job_id)
     if not job:
+        raise JobNotFoundError(job_id)
+
+    if not cron_expression:
+        logger.info("No update parameters provided for job %s; no changes made", job_id)
         return False
 
-    if cron_expression:
-        settings = get_settings()
-        timezone = ZoneInfo(settings.scheduler_timezone)
-        trigger = CronTrigger.from_crontab(cron_expression, timezone=timezone)
-        job.reschedule(trigger)
-        logger.info("Updated job %s with new expression '%s'", job_id, cron_expression)
+    settings = get_settings()
+    timezone = ZoneInfo(settings.scheduler_timezone)
+    trigger = CronTrigger.from_crontab(cron_expression, timezone=timezone)
+    job.reschedule(trigger)
+    logger.info("Updated job %s with new expression '%s'", job_id, cron_expression)
 
     return True
