@@ -1220,16 +1220,17 @@ apps/web-fe/src/
 **Description:** Configure APScheduler with the job store and executor.
 
 **Deliverables:**
-- [ ] Create scheduler instance with appropriate job store
-- [ ] Configure timezone handling
-- [ ] Implement graceful shutdown
-- [ ] Add basic logging
-- [ ] Write tests
+- [x] Create scheduler instance with appropriate job store
+- [x] Configure timezone handling
+- [x] Implement graceful shutdown
+- [x] Add basic logging
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
 apps/scheduler/src/pr_review_scheduler/
 ├── scheduler.py
+├── config.py
 └── main.py
 ```
 

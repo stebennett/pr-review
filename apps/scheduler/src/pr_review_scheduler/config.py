@@ -22,6 +22,8 @@ class Settings(BaseSettings):
         email_from_address: Sender email address.
         application_url: Base URL of the application (for email links).
         schedule_poll_interval: Seconds between schedule DB polls.
+        scheduler_timezone: Timezone for cron job scheduling (IANA timezone name).
+        scheduler_executor_pool_size: Max number of concurrent job executions.
     """
 
     model_config = SettingsConfigDict(
@@ -50,6 +52,8 @@ class Settings(BaseSettings):
 
     # Scheduler
     schedule_poll_interval: int = 60
+    scheduler_timezone: str = "UTC"
+    scheduler_executor_pool_size: int = 10
 
 
 @lru_cache
