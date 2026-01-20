@@ -46,8 +46,11 @@ def create_scheduler() -> BackgroundScheduler:
     executors = {"default": ThreadPoolExecutor(max_workers=settings.scheduler_executor_pool_size)}
 
     job_defaults = {
+        # Combine multiple pending runs into one when a job couldn't be executed on time
         "coalesce": True,
+        # Maximum number of concurrent instances of this job
         "max_instances": 1,
+        # How many seconds late a job can still be triggered (after scheduled time)
         "misfire_grace_time": 60,
     }
 
