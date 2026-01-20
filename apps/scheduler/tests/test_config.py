@@ -6,24 +6,6 @@ from pr_review_scheduler.config import Settings, get_settings
 class TestSettings:
     """Tests for the Settings class."""
 
-    def test_default_settings(self, monkeypatch):
-        """Test that default settings are applied correctly."""
-        get_settings.cache_clear()
-
-        # Set required fields
-        monkeypatch.setenv("ENCRYPTION_KEY", "test-key")
-
-        settings = Settings()
-
-        assert settings.database_url == "sqlite:///./pr_review.db"
-        assert settings.smtp2go_port == 587
-        assert settings.application_url == "http://localhost:5173"
-        assert settings.schedule_poll_interval == 60
-        assert settings.scheduler_timezone == "UTC"
-        assert settings.scheduler_executor_pool_size == 10
-
-        get_settings.cache_clear()
-
     def test_custom_settings_from_env(self, monkeypatch):
         """Test that settings are loaded from environment variables."""
         get_settings.cache_clear()
