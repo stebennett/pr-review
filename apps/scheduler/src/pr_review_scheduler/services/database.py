@@ -169,9 +169,14 @@ def _get_engine() -> Engine:
     global _engine
     if _engine is None:
         settings = get_settings()
+        connect_args = (
+            {"check_same_thread": False}
+            if settings.database_url.startswith("sqlite")
+            else {}
+        )
         _engine = create_engine(
             settings.database_url,
-            connect_args={"check_same_thread": False},  # Required for SQLite
+            connect_args=connect_args,
         )
     return _engine
 
@@ -236,7 +241,7 @@ def get_active_schedules() -> list[dict[str, Any]]:
     try:
         schedules = (
             session.query(NotificationSchedule)
-            .filter(NotificationSchedule.is_active == True)  # noqa: E712
+            .filter(NotificationSchedule.is_active.is_(True))
             .all()
         )
 

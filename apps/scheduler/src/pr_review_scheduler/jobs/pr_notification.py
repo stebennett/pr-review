@@ -42,30 +42,38 @@ def run_notification_job(schedule_id: str) -> None:
     repositories = schedule.get("repositories", [])
     user_email = schedule.get("user_email")
 
-    # 3. Fetch PRs from GitHub for each repository
+    # 3. Fetch PRs from GitHub for each repository concurrently
     all_prs: list[dict[str, Any]] = []
     pr_counts: dict[str, int] = {}
 
-    for repo in repositories:
-        org = repo["organization"]
-        repo_name = repo["repository"]
-        repo_full_name = f"{org}/{repo_name}"
+    if repositories:
+        # Log the repositories we are about to fetch PRs for
+        for repo in repositories:
+            logger.info("Fetching PRs for %s/%s", repo["organization"], repo["repository"])
 
-        logger.info("Fetching PRs for %s", repo_full_name)
+        async def _fetch_all_prs() -> list[list[dict[str, Any]]]:
+            tasks = [
+                get_repository_pull_requests(
+                    github_pat, repo["organization"], repo["repository"]
+                )
+                for repo in repositories
+            ]
+            return await asyncio.gather(*tasks)
 
-        # Run async function in sync context using asyncio.run()
-        # This is the preferred approach in Python 3.7+ as it properly
-        # manages the event loop lifecycle
-        prs = asyncio.run(
-            get_repository_pull_requests(github_pat, org, repo_name)
-        )
+        # Fetch all repositories concurrently with a single event loop
+        prs_results = asyncio.run(_fetch_all_prs())
 
-        if prs:
-            all_prs.extend(prs)
-            pr_counts[repo_full_name] = len(prs)
-            logger.info("Found %d PRs in %s", len(prs), repo_full_name)
-        else:
-            logger.info("No open PRs found in %s", repo_full_name)
+        for repo, prs in zip(repositories, prs_results):
+            org = repo["organization"]
+            repo_name = repo["repository"]
+            repo_full_name = f"{org}/{repo_name}"
+
+            if prs:
+                all_prs.extend(prs)
+                pr_counts[repo_full_name] = len(prs)
+                logger.info("Found %d PRs in %s", len(prs), repo_full_name)
+            else:
+                logger.info("No open PRs found in %s", repo_full_name)
 
     # 4. If PRs found, cache them and send email
     if all_prs:
