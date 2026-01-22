@@ -14,6 +14,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 from pr_review_scheduler.config import get_settings
+from pr_review_scheduler.jobs.pr_notification import run_notification_job
 
 if TYPE_CHECKING:
     from apscheduler.job import Job
@@ -212,3 +213,42 @@ def update_job(
     logger.info("Updated job %s with new expression '%s'", job_id, cron_expression)
 
     return True
+
+
+def add_notification_job(
+    scheduler: BackgroundScheduler,
+    schedule_id: str,
+    cron_expression: str,
+) -> "Job":
+    """Add a notification job with a cron schedule.
+
+    If a job with the same schedule_id already exists, it will be replaced.
+
+    Args:
+        scheduler: The scheduler instance.
+        schedule_id: Unique identifier for the schedule (used as job ID).
+        cron_expression: Cron expression for the job schedule (e.g., "0 9 * * 1-5").
+
+    Returns:
+        The created job instance.
+    """
+    # Remove existing job if present (allows replacement)
+    remove_job(scheduler, schedule_id)
+
+    settings = get_settings()
+    timezone = ZoneInfo(settings.scheduler_timezone)
+
+    # Parse cron expression into CronTrigger
+    trigger = CronTrigger.from_crontab(cron_expression, timezone=timezone)
+
+    # Add the job
+    job = scheduler.add_job(
+        run_notification_job,
+        trigger=trigger,
+        id=schedule_id,
+        args=[schedule_id],
+        name=f"PR notification for schedule {schedule_id}",
+    )
+
+    logger.info("Added notification job: %s with cron: %s", schedule_id, cron_expression)
+    return job

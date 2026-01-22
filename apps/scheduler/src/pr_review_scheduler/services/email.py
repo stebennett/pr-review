@@ -4,6 +4,9 @@ This module provides functions for sending PR notification emails.
 """
 
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from pr_review_scheduler.config import get_settings
 
@@ -25,19 +28,36 @@ def send_notification_email(
     Returns:
         True if email was sent successfully, False otherwise.
     """
-    _settings = get_settings()  # noqa: F841 - Used in Task 6.4 implementation
+    settings = get_settings()
 
     logger.info("Sending email to %s: %s", to_address, subject)
 
-    # TODO: Implement in Task 6.4
-    # Use smtplib to send email via SMTP2GO:
-    # - _settings.smtp2go_host
-    # - _settings.smtp2go_port
-    # - _settings.smtp2go_username
-    # - _settings.smtp2go_password
-    # - _settings.email_from_address
+    try:
+        # Create MIME message
+        msg = MIMEMultipart()
+        msg["From"] = settings.email_from_address
+        msg["To"] = to_address
+        msg["Subject"] = subject
 
-    return True
+        # Attach body as plain text
+        msg.attach(MIMEText(body, "plain"))
+
+        # Connect to SMTP server and send
+        with smtplib.SMTP(settings.smtp2go_host, settings.smtp2go_port) as server:
+            server.starttls()
+            server.login(settings.smtp2go_username, settings.smtp2go_password)
+            server.sendmail(
+                settings.email_from_address,
+                to_address,
+                msg.as_string(),
+            )
+
+        logger.info("Email sent successfully to %s", to_address)
+        return True
+
+    except Exception as e:
+        logger.error("Failed to send email to %s: %s", to_address, str(e))
+        return False
 
 
 def format_pr_summary_email(

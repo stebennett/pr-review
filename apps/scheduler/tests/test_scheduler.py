@@ -2,6 +2,7 @@
 
 import threading
 from datetime import datetime, timedelta
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -13,6 +14,7 @@ from pr_review_scheduler.config import get_settings
 from pr_review_scheduler.scheduler import (
     JobNotFoundError,
     add_cron_job,
+    add_notification_job,
     create_scheduler,
     get_all_jobs,
     get_job,
@@ -490,3 +492,66 @@ class TestJobExecution:
             assert job is not None
         finally:
             scheduler.shutdown(wait=False)
+
+
+class TestAddNotificationJob:
+    """Tests for add_notification_job function."""
+
+    def test_add_notification_job(self, mock_settings):
+        """Test adding a notification job with cron expression."""
+        scheduler = create_scheduler()
+        start_scheduler(scheduler)
+
+        try:
+            with patch("pr_review_scheduler.scheduler.run_notification_job"):
+                job = add_notification_job(
+                    scheduler,
+                    schedule_id="test-schedule-123",
+                    cron_expression="0 9 * * 1-5",  # 9am weekdays
+                )
+
+                assert job is not None
+                assert job.id == "test-schedule-123"
+                assert isinstance(job.trigger, CronTrigger)
+
+                # Verify job can be retrieved
+                retrieved = get_job(scheduler, "test-schedule-123")
+                assert retrieved is not None
+                assert retrieved.id == job.id
+        finally:
+            shutdown_scheduler(scheduler, wait=False)
+
+    def test_add_notification_job_replaces_existing(self, mock_settings):
+        """Test that adding a job with same ID replaces existing."""
+        scheduler = create_scheduler()
+        start_scheduler(scheduler)
+
+        try:
+            with patch("pr_review_scheduler.scheduler.run_notification_job"):
+                add_notification_job(scheduler, "test-123", "0 9 * * *")
+                add_notification_job(scheduler, "test-123", "0 10 * * *")  # Different time
+
+                jobs = scheduler.get_jobs()
+                assert len(jobs) == 1
+                assert jobs[0].id == "test-123"
+        finally:
+            shutdown_scheduler(scheduler, wait=False)
+
+    def test_add_notification_job_uses_configured_timezone(self, mock_settings):
+        """Test that notification jobs use configured timezone."""
+        scheduler = create_scheduler()
+        start_scheduler(scheduler)
+
+        try:
+            with patch("pr_review_scheduler.scheduler.run_notification_job"):
+                job = add_notification_job(
+                    scheduler,
+                    schedule_id="tz-test",
+                    cron_expression="0 9 * * *",
+                )
+
+                assert job is not None
+                # Verify the trigger has the correct timezone
+                assert job.trigger.timezone == ZoneInfo("UTC")
+        finally:
+            shutdown_scheduler(scheduler, wait=False)
