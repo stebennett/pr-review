@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from pr_review_scheduler.services.email import (
     format_pr_summary_email,
     send_notification_email,
