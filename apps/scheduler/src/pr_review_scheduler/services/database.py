@@ -352,10 +352,40 @@ def cache_pull_requests(
 
     Args:
         schedule_id: The schedule ID.
-        pull_requests: List of PR data to cache.
+        pull_requests: List of PR data dicts with keys:
+            number, title, author, author_avatar_url, labels,
+            checks_status, html_url, created_at, organization, repository
     """
     logger.debug("Caching %d PRs for schedule: %s", len(pull_requests), schedule_id)
 
-    # TODO: Implement in Task 6.6
-    # 1. Delete existing cached_pull_requests for schedule_id
-    # 2. Insert new PRs
+    session = _get_session()
+    try:
+        # Delete existing cached PRs for this schedule
+        session.query(CachedPullRequest).filter_by(schedule_id=schedule_id).delete()
+
+        # Insert new PRs
+        for pr in pull_requests:
+            cached_pr = CachedPullRequest(
+                id=str(uuid4()),
+                schedule_id=schedule_id,
+                organization=pr["organization"],
+                repository=pr["repository"],
+                pr_number=pr["number"],
+                title=pr["title"],
+                author=pr["author"],
+                author_avatar_url=pr.get("author_avatar_url"),
+                labels=pr.get("labels"),
+                checks_status=pr.get("checks_status"),
+                html_url=pr["html_url"],
+                created_at=pr["created_at"],
+            )
+            session.add(cached_pr)
+
+        session.commit()
+        logger.info("Cached %d PRs for schedule: %s", len(pull_requests), schedule_id)
+    except Exception as e:
+        session.rollback()
+        logger.error("Error caching PRs for schedule %s: %s", schedule_id, e)
+        raise
+    finally:
+        session.close()

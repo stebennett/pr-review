@@ -1420,10 +1420,10 @@ async def poll_for_changes():
 **Description:** Cache fetched PR data in the database for potential future use.
 
 **Deliverables:**
-- [ ] Create cached_pull_requests table operations
-- [ ] Store fetched PRs after each job run
-- [ ] Clear old cached data before inserting new
-- [ ] Write tests
+- [x] Create cached_pull_requests table operations
+- [x] Store fetched PRs after each job run
+- [x] Clear old cached data before inserting new
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```

@@ -1,5 +1,7 @@
 """Tests for the database service."""
 
+from datetime import UTC, datetime
+
 import pytest
 from pr_review_shared.encryption import encrypt_token, generate_encryption_key
 from sqlalchemy import create_engine
@@ -306,3 +308,281 @@ class TestDecryptionErrorHandling:
         # Should return empty list (skipped due to decryption error)
         schedules = database.get_active_schedules()
         assert all(s["id"] != "schedule-bad-pat" for s in schedules)
+
+
+class TestCachePullRequests:
+    """Tests for cache_pull_requests function."""
+
+    def test_cache_pull_requests(self, setup_test_data, test_session: Session):
+        """Test caching PR data."""
+        # Create PR data
+        prs = [
+            {
+                "number": 1,
+                "title": "Add feature",
+                "author": "user1",
+                "author_avatar_url": "https://avatar.png",
+                "labels": '[{"name": "bug", "color": "red"}]',
+                "checks_status": "pass",
+                "html_url": "https://github.com/org/repo/pull/1",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+
+        database.cache_pull_requests("schedule-active-1", prs)
+
+        # Verify cached
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 1
+        assert cached[0].pr_number == 1
+        assert cached[0].title == "Add feature"
+        assert cached[0].author == "user1"
+        assert cached[0].author_avatar_url == "https://avatar.png"
+        assert cached[0].labels == '[{"name": "bug", "color": "red"}]'
+        assert cached[0].checks_status == "pass"
+        assert cached[0].html_url == "https://github.com/org/repo/pull/1"
+        assert cached[0].organization == "my-org"
+        assert cached[0].repository == "repo-1"
+
+    def test_cache_pull_requests_replaces_existing(
+        self, setup_test_data, test_session: Session
+    ):
+        """Test that caching replaces existing cached PRs."""
+        # Add initial PR
+        initial = [
+            {
+                "number": 1,
+                "title": "Old PR",
+                "author": "user1",
+                "author_avatar_url": "https://avatar1.png",
+                "labels": None,
+                "checks_status": "pending",
+                "html_url": "https://github.com/org/repo/pull/1",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-active-1", initial)
+
+        # Verify initial PR cached
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 1
+        assert cached[0].pr_number == 1
+        assert cached[0].title == "Old PR"
+
+        # Replace with new PR
+        new = [
+            {
+                "number": 2,
+                "title": "New PR",
+                "author": "user2",
+                "author_avatar_url": "https://avatar2.png",
+                "labels": '[{"name": "feature", "color": "blue"}]',
+                "checks_status": "pass",
+                "html_url": "https://github.com/org/repo/pull/2",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-active-1", new)
+
+        # Verify only new PR exists
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 1
+        assert cached[0].pr_number == 2
+        assert cached[0].title == "New PR"
+
+    def test_cache_pull_requests_multiple_prs(
+        self, setup_test_data, test_session: Session
+    ):
+        """Test caching multiple PRs at once."""
+        prs = [
+            {
+                "number": 1,
+                "title": "First PR",
+                "author": "user1",
+                "author_avatar_url": None,
+                "labels": None,
+                "checks_status": None,
+                "html_url": "https://github.com/org/repo/pull/1",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            },
+            {
+                "number": 2,
+                "title": "Second PR",
+                "author": "user2",
+                "author_avatar_url": "https://avatar2.png",
+                "labels": '[{"name": "bug", "color": "red"}]',
+                "checks_status": "fail",
+                "html_url": "https://github.com/org/repo/pull/2",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-2",
+            },
+            {
+                "number": 3,
+                "title": "Third PR",
+                "author": "user3",
+                "author_avatar_url": "https://avatar3.png",
+                "labels": None,
+                "checks_status": "pass",
+                "html_url": "https://github.com/org/other-repo/pull/3",
+                "created_at": datetime.now(UTC),
+                "organization": "other-org",
+                "repository": "other-repo",
+            },
+        ]
+
+        database.cache_pull_requests("schedule-active-1", prs)
+
+        # Verify all PRs cached
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 3
+        pr_numbers = {pr.pr_number for pr in cached}
+        assert pr_numbers == {1, 2, 3}
+
+    def test_cache_pull_requests_empty_list(
+        self, setup_test_data, test_session: Session
+    ):
+        """Test caching an empty list of PRs clears existing cache."""
+        # First, add a PR
+        prs = [
+            {
+                "number": 1,
+                "title": "PR to be cleared",
+                "author": "user1",
+                "author_avatar_url": None,
+                "labels": None,
+                "checks_status": None,
+                "html_url": "https://github.com/org/repo/pull/1",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-active-1", prs)
+
+        # Verify PR is cached
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 1
+
+        # Cache empty list
+        database.cache_pull_requests("schedule-active-1", [])
+
+        # Verify cache is cleared
+        cached = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        assert len(cached) == 0
+
+    def test_cache_pull_requests_different_schedules_isolated(
+        self, setup_test_data, test_session: Session
+    ):
+        """Test that caching for one schedule doesn't affect another."""
+        # Cache PR for schedule-active-1
+        prs_active = [
+            {
+                "number": 1,
+                "title": "Active Schedule PR",
+                "author": "user1",
+                "author_avatar_url": None,
+                "labels": None,
+                "checks_status": None,
+                "html_url": "https://github.com/org/repo/pull/1",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-active-1", prs_active)
+
+        # Cache PR for schedule-inactive-1
+        prs_inactive = [
+            {
+                "number": 2,
+                "title": "Inactive Schedule PR",
+                "author": "user2",
+                "author_avatar_url": None,
+                "labels": None,
+                "checks_status": None,
+                "html_url": "https://github.com/org/repo/pull/2",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-inactive-1", prs_inactive)
+
+        # Verify each schedule has its own cached PRs
+        cached_active = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-active-1")
+            .all()
+        )
+        cached_inactive = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-inactive-1")
+            .all()
+        )
+
+        assert len(cached_active) == 1
+        assert cached_active[0].pr_number == 1
+        assert cached_active[0].title == "Active Schedule PR"
+
+        assert len(cached_inactive) == 1
+        assert cached_inactive[0].pr_number == 2
+        assert cached_inactive[0].title == "Inactive Schedule PR"
+
+        # Now replace schedule-active-1's cache
+        new_prs = [
+            {
+                "number": 3,
+                "title": "Replaced PR",
+                "author": "user3",
+                "author_avatar_url": None,
+                "labels": None,
+                "checks_status": None,
+                "html_url": "https://github.com/org/repo/pull/3",
+                "created_at": datetime.now(UTC),
+                "organization": "my-org",
+                "repository": "repo-1",
+            }
+        ]
+        database.cache_pull_requests("schedule-active-1", new_prs)
+
+        # Verify schedule-inactive-1's cache is unaffected
+        cached_inactive = (
+            test_session.query(database.CachedPullRequest)
+            .filter_by(schedule_id="schedule-inactive-1")
+            .all()
+        )
+        assert len(cached_inactive) == 1
+        assert cached_inactive[0].pr_number == 2
