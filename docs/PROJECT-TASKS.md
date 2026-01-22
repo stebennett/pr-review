@@ -1230,6 +1230,7 @@ apps/web-fe/src/
 ```
 apps/scheduler/src/pr_review_scheduler/
 ├── scheduler.py
+├── config.py
 └── main.py
 ```
 
