@@ -1141,15 +1141,15 @@ apps/web-fe/src/
 **Description:** Create the form for creating and editing notification schedules.
 
 **Deliverables:**
-- [ ] Create ScheduleForm component (modal or separate page)
-- [ ] Add name input field
-- [ ] Add cron expression input with helper text
-- [ ] Add GitHub PAT input (masked)
-- [ ] Add repository selector (multi-select from available repos)
-- [ ] Add active toggle
-- [ ] Implement form validation
-- [ ] Implement save handler
-- [ ] Write component tests
+- [x] Create ScheduleForm component (modal or separate page)
+- [x] Add name input field
+- [x] Add cron expression input with helper text
+- [x] Add GitHub PAT input (masked)
+- [x] Add repository selector (multi-select from available repos)
+- [x] Add active toggle
+- [x] Implement form validation
+- [x] Implement save handler
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
@@ -1181,12 +1181,12 @@ apps/web-fe/src/
 **Description:** Create the component that displays list of notification schedules with actions.
 
 **Deliverables:**
-- [ ] Create ScheduleList component
-- [ ] Display schedule name, cron expression (human readable), status
-- [ ] Add edit button for each schedule
-- [ ] Add delete button with confirmation
-- [ ] Add toggle for active/inactive
-- [ ] Write component tests
+- [x] Create ScheduleList component
+- [x] Display schedule name, cron expression (human readable), status
+- [x] Add edit button for each schedule
+- [x] Add delete button with confirmation
+- [x] Add toggle for active/inactive
+- [x] Write component tests
 
 **Files to Create/Modify:**
 ```
@@ -1220,16 +1220,17 @@ apps/web-fe/src/
 **Description:** Configure APScheduler with the job store and executor.
 
 **Deliverables:**
-- [ ] Create scheduler instance with appropriate job store
-- [ ] Configure timezone handling
-- [ ] Implement graceful shutdown
-- [ ] Add basic logging
-- [ ] Write tests
+- [x] Create scheduler instance with appropriate job store
+- [x] Configure timezone handling
+- [x] Implement graceful shutdown
+- [x] Add basic logging
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
 apps/scheduler/src/pr_review_scheduler/
 ├── scheduler.py
+├── config.py
 └── main.py
 ```
 
@@ -1250,11 +1251,11 @@ apps/scheduler/src/pr_review_scheduler/
 **Description:** Load active schedules from database and create APScheduler jobs.
 
 **Deliverables:**
-- [ ] Create database service to query schedules
+- [x] Create database service to query schedules
 - [ ] Convert cron expressions to APScheduler triggers
 - [ ] Create jobs for each active schedule
 - [ ] Handle schedule enable/disable
-- [ ] Write tests
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
@@ -1289,12 +1290,12 @@ def load_schedules():
 **Description:** Create the job that fetches open PRs for a schedule's repositories.
 
 **Deliverables:**
-- [ ] Create notification job function
-- [ ] Decrypt PAT from schedule
-- [ ] Fetch PRs for each repository in schedule
-- [ ] Aggregate results
-- [ ] Handle errors gracefully (log, don't crash)
-- [ ] Write tests
+- [x] Create notification job function
+- [x] Decrypt PAT from schedule
+- [x] Fetch PRs for each repository in schedule
+- [x] Aggregate results
+- [x] Handle errors gracefully (log, don't crash)
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
@@ -1327,11 +1328,11 @@ apps/scheduler/src/pr_review_scheduler/
 **Description:** Create the service to send notification emails.
 
 **Deliverables:**
-- [ ] Create email service with SMTP2GO configuration
-- [ ] Implement `send_notification_email(to: str, subject: str, body: str)`
-- [ ] Create email template for PR summary
-- [ ] Handle SMTP errors gracefully
-- [ ] Write tests
+- [x] Create email service with SMTP2GO configuration
+- [x] Implement `send_notification_email(to: str, subject: str, body: str)`
+- [x] Create email template for PR summary
+- [x] Handle SMTP errors gracefully
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
@@ -1369,12 +1370,12 @@ To manage your notification settings, visit {APPLICATION_URL}/settings
 **Description:** Poll database for schedule changes and update APScheduler jobs accordingly.
 
 **Deliverables:**
-- [ ] Create polling loop (every 60 seconds)
-- [ ] Detect new schedules and add jobs
-- [ ] Detect deleted schedules and remove jobs
-- [ ] Detect updated schedules and update jobs
-- [ ] Detect active/inactive changes
-- [ ] Write tests
+- [x] Create polling loop (every 60 seconds)
+- [x] Detect new schedules and add jobs
+- [x] Detect deleted schedules and remove jobs
+- [x] Detect updated schedules and update jobs
+- [x] Detect active/inactive changes
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```
@@ -1420,10 +1421,10 @@ async def poll_for_changes():
 **Description:** Cache fetched PR data in the database for potential future use.
 
 **Deliverables:**
-- [ ] Create cached_pull_requests table operations
-- [ ] Store fetched PRs after each job run
-- [ ] Clear old cached data before inserting new
-- [ ] Write tests
+- [x] Create cached_pull_requests table operations
+- [x] Store fetched PRs after each job run
+- [x] Clear old cached data before inserting new
+- [x] Write tests
 
 **Files to Create/Modify:**
 ```

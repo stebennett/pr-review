@@ -1106,3 +1106,488 @@ class TestPATValidationOnUpdate:
             mock_service.validate_repository_access.assert_not_called()
         finally:
             app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestGetScheduleOrganizations:
+    """Tests for GET /api/schedules/{schedule_id}/organizations."""
+
+    def test_requires_authentication(self, client):
+        """Should return 401/403 without Authorization header."""
+        response = client.get("/api/schedules/some-id/organizations")
+        assert response.status_code in [401, 403]
+
+    def test_returns_404_for_nonexistent_schedule(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return 404 for schedule that doesn't exist."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        response = client.get(
+            "/api/schedules/nonexistent-id/organizations", headers=auth_headers
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Schedule not found"
+
+    def test_returns_404_for_other_users_schedule(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 404 for schedule belonging to another user."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create another user and their schedule
+        from pr_review_api.models.user import User
+
+        other_user = User(
+            id="99999",
+            github_username="otheruser",
+            github_access_token="encrypted_token",
+        )
+        db_session.add(other_user)
+        db_session.commit()
+
+        encrypted_pat = encrypt_token("ghp_test", test_settings.encryption_key)
+        other_schedule = NotificationSchedule(
+            user_id=other_user.id,
+            name="Other Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(other_schedule)
+        db_session.commit()
+
+        response = client.get(
+            f"/api/schedules/{other_schedule.id}/organizations", headers=auth_headers
+        )
+
+        assert response.status_code == 404
+
+    def test_returns_400_for_invalid_stored_pat(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 400 when stored PAT is no longer valid."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create a schedule
+        encrypted_pat = encrypt_token("ghp_expired_token", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Test Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        # Mock the GitHub service to return invalid PAT
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=False,
+                scopes=[],
+                missing_scopes=[],
+                username=None,
+                error_message="Token has expired",
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.get(
+                f"/api/schedules/{schedule.id}/organizations", headers=auth_headers
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_VALIDATION_FAILED"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_organizations_successfully(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return organizations when PAT is valid."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create a schedule
+        encrypted_pat = encrypt_token("ghp_valid_token", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Test Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        # Mock the GitHub service
+        from pr_review_api.schemas import Organization
+
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:org", "repo"],
+                missing_scopes=[],
+                username="testuser",
+            )
+        )
+        mock_service.get_user_organizations = AsyncMock(
+            return_value=(
+                [
+                    Organization(id="1", login="org1", avatar_url="https://example.com/1"),
+                    Organization(id="2", login="org2", avatar_url="https://example.com/2"),
+                ],
+                None,
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.get(
+                f"/api/schedules/{schedule.id}/organizations", headers=auth_headers
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["data"]["username"] == "testuser"
+            assert len(data["data"]["organizations"]) == 2
+            assert data["data"]["organizations"][0]["login"] == "org1"
+            assert data["data"]["organizations"][1]["login"] == "org2"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestGetScheduleRepositories:
+    """Tests for GET /api/schedules/{schedule_id}/repositories."""
+
+    def test_requires_authentication(self, client):
+        """Should return 401/403 without Authorization header."""
+        response = client.get("/api/schedules/some-id/repositories?organization=my-org")
+        assert response.status_code in [401, 403]
+
+    def test_returns_404_for_nonexistent_schedule(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return 404 for schedule that doesn't exist."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        response = client.get(
+            "/api/schedules/nonexistent-id/repositories?organization=my-org",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert data["detail"] == "Schedule not found"
+
+    def test_returns_404_for_other_users_schedule(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 404 for schedule belonging to another user."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create another user and their schedule
+        from pr_review_api.models.user import User
+
+        other_user = User(
+            id="99999",
+            github_username="otheruser",
+            github_access_token="encrypted_token",
+        )
+        db_session.add(other_user)
+        db_session.commit()
+
+        encrypted_pat = encrypt_token("ghp_test", test_settings.encryption_key)
+        other_schedule = NotificationSchedule(
+            user_id=other_user.id,
+            name="Other Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(other_schedule)
+        db_session.commit()
+
+        response = client.get(
+            f"/api/schedules/{other_schedule.id}/repositories?organization=my-org",
+            headers=auth_headers,
+        )
+
+        assert response.status_code == 404
+
+    def test_returns_400_when_fetch_fails(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return 400 when fetching repositories fails."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create a schedule
+        encrypted_pat = encrypt_token("ghp_test", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Test Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        # Mock the GitHub service to raise an exception
+        mock_service = AsyncMock()
+        mock_service.get_organization_repositories = AsyncMock(
+            side_effect=Exception("API error")
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.get(
+                f"/api/schedules/{schedule.id}/repositories?organization=invalid-org",
+                headers=auth_headers,
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "FETCH_REPOSITORIES_FAILED"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_repositories_successfully(
+        self, client, test_user, auth_headers, db_session, test_settings
+    ):
+        """Should return repositories for the organization."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Create a schedule
+        encrypted_pat = encrypt_token("ghp_valid_token", test_settings.encryption_key)
+        schedule = NotificationSchedule(
+            user_id=test_user.id,
+            name="Test Schedule",
+            cron_expression="0 9 * * *",
+            github_pat=encrypted_pat,
+        )
+        db_session.add(schedule)
+        db_session.commit()
+
+        # Mock the GitHub service
+        from pr_review_api.schemas import Repository
+
+        mock_service = AsyncMock()
+        mock_service.get_organization_repositories = AsyncMock(
+            return_value=(
+                [
+                    Repository(id="1", name="repo1", full_name="my-org/repo1"),
+                    Repository(id="2", name="repo2", full_name="my-org/repo2"),
+                ],
+                None,
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.get(
+                f"/api/schedules/{schedule.id}/repositories?organization=my-org",
+                headers=auth_headers,
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["data"]["repositories"]) == 2
+            assert data["data"]["repositories"][0]["name"] == "repo1"
+            assert data["data"]["repositories"][1]["name"] == "repo2"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestPreviewPATOrganizations:
+    """Tests for POST /api/schedules/pat/organizations."""
+
+    def test_requires_authentication(self, client):
+        """Should return 401/403 without Authorization header."""
+        response = client.post(
+            "/api/schedules/pat/organizations",
+            json={"github_pat": "ghp_test"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_returns_400_for_invalid_pat(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return 400 for invalid PAT."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return invalid PAT
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=False,
+                scopes=[],
+                missing_scopes=[],
+                username=None,
+                error_message="Invalid or expired GitHub Personal Access Token",
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules/pat/organizations",
+                headers=auth_headers,
+                json={"github_pat": "invalid_token"},
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_VALIDATION_FAILED"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_400_for_missing_scopes(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return 400 for PAT missing required scopes."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to return missing scopes
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:user"],
+                missing_scopes=["read:org", "repo"],
+                username="testuser",
+            )
+        )
+        mock_service.REQUIRED_PAT_SCOPES = {"read:org", "repo"}
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules/pat/organizations",
+                headers=auth_headers,
+                json={"github_pat": "ghp_limited_scopes"},
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "PAT_MISSING_SCOPES"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_organizations_successfully(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return organizations when PAT is valid."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service
+        from pr_review_api.schemas import Organization
+
+        mock_service = AsyncMock()
+        mock_service.validate_pat = AsyncMock(
+            return_value=PATValidationResult(
+                is_valid=True,
+                scopes=["read:org", "repo"],
+                missing_scopes=[],
+                username="testuser",
+            )
+        )
+        mock_service.get_user_organizations = AsyncMock(
+            return_value=(
+                [
+                    Organization(id="1", login="my-org", avatar_url="https://example.com/1"),
+                ],
+                None,
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules/pat/organizations",
+                headers=auth_headers,
+                json={"github_pat": "ghp_valid_token"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert data["data"]["username"] == "testuser"
+            assert len(data["data"]["organizations"]) == 1
+            assert data["data"]["organizations"][0]["login"] == "my-org"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+
+class TestPreviewPATRepositories:
+    """Tests for POST /api/schedules/pat/repositories."""
+
+    def test_requires_authentication(self, client):
+        """Should return 401/403 without Authorization header."""
+        response = client.post(
+            "/api/schedules/pat/repositories",
+            json={"github_pat": "ghp_test", "organization": "my-org"},
+        )
+        assert response.status_code in [401, 403]
+
+    def test_returns_400_when_fetch_fails(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return 400 when fetching repositories fails."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service to raise an exception
+        mock_service = AsyncMock()
+        mock_service.get_organization_repositories = AsyncMock(
+            side_effect=Exception("API error")
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules/pat/repositories",
+                headers=auth_headers,
+                json={"github_pat": "ghp_test", "organization": "invalid-org"},
+            )
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["detail"]["code"] == "FETCH_REPOSITORIES_FAILED"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)
+
+    def test_returns_repositories_successfully(
+        self, client, test_user, auth_headers, test_settings
+    ):
+        """Should return repositories for the organization."""
+        app.dependency_overrides[get_settings] = lambda: test_settings
+
+        # Mock the GitHub service
+        from pr_review_api.schemas import Repository
+
+        mock_service = AsyncMock()
+        mock_service.get_organization_repositories = AsyncMock(
+            return_value=(
+                [
+                    Repository(id="1", name="repo1", full_name="my-org/repo1"),
+                    Repository(id="2", name="repo2", full_name="my-org/repo2"),
+                    Repository(id="3", name="repo3", full_name="my-org/repo3"),
+                ],
+                None,
+            )
+        )
+        app.dependency_overrides[get_github_api_service] = lambda: mock_service
+
+        try:
+            response = client.post(
+                "/api/schedules/pat/repositories",
+                headers=auth_headers,
+                json={"github_pat": "ghp_valid_token", "organization": "my-org"},
+            )
+
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data["data"]["repositories"]) == 3
+            assert data["data"]["repositories"][0]["name"] == "repo1"
+            assert data["data"]["repositories"][0]["full_name"] == "my-org/repo1"
+        finally:
+            app.dependency_overrides.pop(get_github_api_service, None)

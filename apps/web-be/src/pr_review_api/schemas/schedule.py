@@ -163,3 +163,95 @@ class SingleScheduleResponse(BaseModel):
     """
 
     data: ScheduleData
+
+
+class PATPreviewRequest(BaseModel):
+    """Request body for PAT preview endpoints.
+
+    Attributes:
+        github_pat: GitHub Personal Access Token to preview.
+    """
+
+    github_pat: str = Field(..., min_length=1)
+
+
+class PATOrganization(BaseModel):
+    """Organization accessible with a PAT.
+
+    Attributes:
+        id: GitHub organization/user ID.
+        login: GitHub organization/user login name.
+        avatar_url: URL to organization/user avatar.
+    """
+
+    id: str
+    login: str
+    avatar_url: str | None = None
+
+
+class PATOrganizationsData(BaseModel):
+    """Container for PAT organizations response.
+
+    Attributes:
+        organizations: List of accessible organizations.
+        username: GitHub username associated with the PAT.
+    """
+
+    organizations: list[PATOrganization]
+    username: str
+
+
+class PATOrganizationsResponse(BaseModel):
+    """API response for PAT organizations preview.
+
+    Attributes:
+        data: Container with organizations list.
+    """
+
+    data: PATOrganizationsData
+
+
+class PATRepositoriesRequest(BaseModel):
+    """Request body for PAT repositories preview.
+
+    Attributes:
+        github_pat: GitHub Personal Access Token.
+        organization: Organization to fetch repositories for.
+    """
+
+    github_pat: str = Field(..., min_length=1)
+    organization: str = Field(..., min_length=1)
+
+
+class PATRepository(BaseModel):
+    """Repository accessible with a PAT.
+
+    Attributes:
+        id: GitHub repository ID.
+        name: Repository name.
+        full_name: Full repository name (org/repo).
+    """
+
+    id: str
+    name: str
+    full_name: str
+
+
+class PATRepositoriesData(BaseModel):
+    """Container for PAT repositories response.
+
+    Attributes:
+        repositories: List of accessible repositories.
+    """
+
+    repositories: list[PATRepository]
+
+
+class PATRepositoriesResponse(BaseModel):
+    """API response for PAT repositories preview.
+
+    Attributes:
+        data: Container with repositories list.
+    """
+
+    data: PATRepositoriesData
