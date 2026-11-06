@@ -15,6 +15,10 @@ RUN pip install --no-cache-dir /shared/python/pr_review_shared
 COPY apps/web-be/pyproject.toml /app/
 RUN pip install --no-cache-dir $(python -c "import tomllib; f=open('pyproject.toml','rb'); d=tomllib.load(f); print(' '.join(d['project']['dependencies']))")
 
+# Copy alembic configuration and migrations
+COPY apps/web-be/alembic.ini /app/
+COPY apps/web-be/alembic /app/alembic
+
 # Install dev dependencies
 RUN pip install --no-cache-dir uvicorn[standard]
 

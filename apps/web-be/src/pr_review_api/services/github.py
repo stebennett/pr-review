@@ -14,11 +14,15 @@ from httpx_oauth.oauth2 import OAuth2Token
 from pr_review_api.config import get_settings
 from pr_review_api.schemas import (
     Author,
+    InaccessibleRepository,
     Label,
     Organization,
+    PATValidationResult,
     PullRequest,
     RateLimitInfo,
     Repository,
+    RepositoryAccessResult,
+    RepositoryRef,
 )
 
 
@@ -497,6 +501,149 @@ class GitHubAPIService:
             reset_at = datetime.fromtimestamp(reset_timestamp, tz=UTC)
 
             return RateLimitInfo(remaining=remaining, reset_at=reset_at)
+
+    # Required scopes for notification schedules
+    REQUIRED_PAT_SCOPES = {"read:org", "repo"}
+
+    async def validate_pat(self, pat: str) -> PATValidationResult:
+        """Validate a GitHub Personal Access Token.
+
+        Checks that the PAT is valid by calling the /user endpoint and
+        verifies that it has the required scopes from the X-OAuth-Scopes header.
+
+        Args:
+            pat: GitHub Personal Access Token to validate.
+
+        Returns:
+            PATValidationResult containing validation status, scopes,
+            and any missing required scopes.
+        """
+        async with httpx.AsyncClient() as client:
+            try:
+                response = await client.get(
+                    f"{self.GITHUB_API_BASE}/user",
+                    headers=self._get_headers(pat),
+                )
+                response.raise_for_status()
+
+                # Parse user data
+                user_data = response.json()
+                username = user_data.get("login")
+
+                # Parse scopes from response header
+                # Classic PATs use X-OAuth-Scopes header
+                # Fine-grained PATs don't have this header but work differently
+                scopes_header = response.headers.get("X-OAuth-Scopes", "")
+                if scopes_header:
+                    scopes = [s.strip() for s in scopes_header.split(",") if s.strip()]
+                else:
+                    # Fine-grained PATs don't return scopes in header
+                    # They have repository-level permissions instead
+                    # We'll validate access via repository checks
+                    scopes = []
+
+                # Check for missing required scopes (only for classic PATs)
+                missing_scopes = []
+                if scopes:  # Classic PAT
+                    scopes_set = set(scopes)
+                    for required in self.REQUIRED_PAT_SCOPES:
+                        if required not in scopes_set:
+                            missing_scopes.append(required)
+
+                return PATValidationResult(
+                    is_valid=True,
+                    scopes=scopes,
+                    missing_scopes=missing_scopes,
+                    username=username,
+                    error_message=None,
+                )
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    return PATValidationResult(
+                        is_valid=False,
+                        scopes=[],
+                        missing_scopes=[],
+                        username=None,
+                        error_message="Invalid or expired GitHub Personal Access Token",
+                    )
+                return PATValidationResult(
+                    is_valid=False,
+                    scopes=[],
+                    missing_scopes=[],
+                    username=None,
+                    error_message=f"GitHub API error: {e.response.status_code}",
+                )
+            except httpx.RequestError as e:
+                return PATValidationResult(
+                    is_valid=False,
+                    scopes=[],
+                    missing_scopes=[],
+                    username=None,
+                    error_message=f"Failed to connect to GitHub API: {e!s}",
+                )
+
+    async def validate_repository_access(
+        self, pat: str, repositories: list[RepositoryRef]
+    ) -> RepositoryAccessResult:
+        """Validate that a PAT can access the specified repositories.
+
+        Checks each repository by attempting to fetch it from the GitHub API.
+
+        Args:
+            pat: GitHub Personal Access Token.
+            repositories: List of repositories to check access for.
+
+        Returns:
+            RepositoryAccessResult with accessible and inaccessible repos.
+        """
+        accessible: list[RepositoryRef] = []
+        inaccessible: list[InaccessibleRepository] = []
+
+        async with httpx.AsyncClient() as client:
+            for repo_ref in repositories:
+                try:
+                    response = await client.get(
+                        f"{self.GITHUB_API_BASE}/repos/{repo_ref.organization}/{repo_ref.repository}",
+                        headers=self._get_headers(pat),
+                    )
+
+                    if response.status_code == 200:
+                        accessible.append(repo_ref)
+                    elif response.status_code == 404:
+                        inaccessible.append(
+                            InaccessibleRepository(
+                                organization=repo_ref.organization,
+                                repository=repo_ref.repository,
+                                reason="Repository not found or no access",
+                            )
+                        )
+                    elif response.status_code == 403:
+                        inaccessible.append(
+                            InaccessibleRepository(
+                                organization=repo_ref.organization,
+                                repository=repo_ref.repository,
+                                reason="Access forbidden - insufficient permissions",
+                            )
+                        )
+                    else:
+                        inaccessible.append(
+                            InaccessibleRepository(
+                                organization=repo_ref.organization,
+                                repository=repo_ref.repository,
+                                reason=f"GitHub API error: {response.status_code}",
+                            )
+                        )
+                except httpx.RequestError as e:
+                    inaccessible.append(
+                        InaccessibleRepository(
+                            organization=repo_ref.organization,
+                            repository=repo_ref.repository,
+                            reason=f"Connection error: {e!s}",
+                        )
+                    )
+
+        return RepositoryAccessResult(accessible=accessible, inaccessible=inaccessible)
 
 
 def get_github_api_service() -> GitHubAPIService:

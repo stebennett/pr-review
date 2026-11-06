@@ -82,8 +82,10 @@ scheduler (APScheduler) → SMTP2GO
 
 1. Create a new branch from `main`
 2. Make changes in small, focused commits
-3. Push branch and create pull request using `gh pr create`
+3. Push branch and create pull request using `gh pr create --reviewer copilot-pull-request-reviewer`
 4. Merge after review
+
+Always add Copilot as a reviewer when creating PRs for automated code review.
 
 Work in vertical slices following the phases in SPECIFICATION.md.
 

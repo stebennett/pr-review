@@ -6,6 +6,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 import { setAuthToken } from "./services/api";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
+import Settings from "./pages/Settings";
 
 function TokenHandler({ children }: { children: React.ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -39,6 +40,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <Settings />
             </ProtectedRoute>
           }
         />

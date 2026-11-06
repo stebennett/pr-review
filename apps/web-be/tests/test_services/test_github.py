@@ -613,3 +613,229 @@ class TestGitHubAPIService:
         assert headers["Authorization"] == "Bearer my_token"
         assert headers["Accept"] == "application/vnd.github+json"
         assert headers["X-GitHub-Api-Version"] == "2022-11-28"
+
+    # Tests for PAT validation
+
+    @pytest.mark.asyncio
+    async def test_validate_pat_valid_token_with_scopes(self, service):
+        """Should validate a valid PAT with required scopes."""
+        mock_user = {"id": 12345, "login": "testuser"}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_user
+        mock_response.raise_for_status = MagicMock()
+        mock_response.headers = {"X-OAuth-Scopes": "read:org, repo, read:user"}
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_pat("ghp_valid_token")
+
+            assert result.is_valid is True
+            assert result.username == "testuser"
+            assert "read:org" in result.scopes
+            assert "repo" in result.scopes
+            assert result.missing_scopes == []
+            assert result.error_message is None
+
+    @pytest.mark.asyncio
+    async def test_validate_pat_missing_scopes(self, service):
+        """Should detect missing required scopes."""
+        mock_user = {"id": 12345, "login": "testuser"}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_user
+        mock_response.raise_for_status = MagicMock()
+        mock_response.headers = {"X-OAuth-Scopes": "read:user"}  # Missing read:org and repo
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_pat("ghp_limited_token")
+
+            assert result.is_valid is True
+            assert result.username == "testuser"
+            assert "read:org" in result.missing_scopes
+            assert "repo" in result.missing_scopes
+
+    @pytest.mark.asyncio
+    async def test_validate_pat_fine_grained_token(self, service):
+        """Should handle fine-grained PAT without scopes header."""
+        mock_user = {"id": 12345, "login": "testuser"}
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_user
+        mock_response.raise_for_status = MagicMock()
+        mock_response.headers = {}  # Fine-grained PATs don't have X-OAuth-Scopes
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_pat("github_pat_fine_grained")
+
+            assert result.is_valid is True
+            assert result.username == "testuser"
+            assert result.scopes == []
+            assert result.missing_scopes == []  # Can't check scopes for fine-grained PATs
+
+    @pytest.mark.asyncio
+    async def test_validate_pat_invalid_token(self, service):
+        """Should return invalid result for unauthorized token."""
+
+        async def mock_get(*args, **kwargs):
+            response = MagicMock()
+            response.status_code = 401
+            response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Unauthorized", request=MagicMock(), response=response
+            )
+            return response
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = mock_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_pat("invalid_token")
+
+            assert result.is_valid is False
+            assert result.username is None
+            assert "Invalid or expired" in result.error_message
+
+    @pytest.mark.asyncio
+    async def test_validate_pat_api_error(self, service):
+        """Should handle GitHub API errors."""
+
+        async def mock_get(*args, **kwargs):
+            response = MagicMock()
+            response.status_code = 500
+            response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                "Server Error", request=MagicMock(), response=response
+            )
+            return response
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = mock_get
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock(return_value=False)
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_pat("some_token")
+
+            assert result.is_valid is False
+            assert "500" in result.error_message
+
+    # Tests for repository access validation
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_access_all_accessible(self, service):
+        """Should return all repos as accessible when access is granted."""
+        from pr_review_api.schemas import RepositoryRef
+
+        repos = [
+            RepositoryRef(organization="my-org", repository="repo-1"),
+            RepositoryRef(organization="my-org", repository="repo-2"),
+        ]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_repository_access("valid_token", repos)
+
+            assert len(result.accessible) == 2
+            assert len(result.inaccessible) == 0
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_access_some_inaccessible(self, service):
+        """Should correctly identify inaccessible repos."""
+        from pr_review_api.schemas import RepositoryRef
+
+        repos = [
+            RepositoryRef(organization="my-org", repository="repo-1"),
+            RepositoryRef(organization="my-org", repository="private-repo"),
+        ]
+
+        mock_response_200 = MagicMock()
+        mock_response_200.status_code = 200
+
+        mock_response_404 = MagicMock()
+        mock_response_404.status_code = 404
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=[mock_response_200, mock_response_404])
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_repository_access("valid_token", repos)
+
+            assert len(result.accessible) == 1
+            assert result.accessible[0].repository == "repo-1"
+            assert len(result.inaccessible) == 1
+            assert result.inaccessible[0].repository == "private-repo"
+            assert "not found" in result.inaccessible[0].reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_access_forbidden(self, service):
+        """Should handle 403 forbidden response."""
+        from pr_review_api.schemas import RepositoryRef
+
+        repos = [RepositoryRef(organization="my-org", repository="repo-1")]
+
+        mock_response = MagicMock()
+        mock_response.status_code = 403
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_repository_access("valid_token", repos)
+
+            assert len(result.accessible) == 0
+            assert len(result.inaccessible) == 1
+            assert "forbidden" in result.inaccessible[0].reason.lower()
+
+    @pytest.mark.asyncio
+    async def test_validate_repository_access_connection_error(self, service):
+        """Should handle connection errors gracefully."""
+        from pr_review_api.schemas import RepositoryRef
+
+        repos = [RepositoryRef(organization="my-org", repository="repo-1")]
+
+        with patch("pr_review_api.services.github.httpx.AsyncClient") as mock_client_class:
+            mock_client = MagicMock()
+            mock_client.get = AsyncMock(side_effect=httpx.RequestError("Connection failed"))
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            result = await service.validate_repository_access("valid_token", repos)
+
+            assert len(result.accessible) == 0
+            assert len(result.inaccessible) == 1
+            assert "connection" in result.inaccessible[0].reason.lower()
